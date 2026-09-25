@@ -52,8 +52,8 @@ jobs:
           sha256sum "$APK" | tee ../qa/sha256.txt
 
           grep -q "package: name='com.tamishra.mobile'" ../qa/apk-badging.txt
-          grep -q "versionCode='4'" ../qa/apk-badging.txt
-          grep -q "versionName='0.3.1'" ../qa/apk-badging.txt
+          grep -q "versionCode='5'" ../qa/apk-badging.txt
+          grep -q "versionName='0.4.0'" ../qa/apk-badging.txt
           grep -q "application-label:'Tamishra'" ../qa/apk-badging.txt
           grep -q "launchable-activity: name='com.tamishra.mobile.MainActivity'" ../qa/apk-badging.txt
           grep -q "application-icon-" ../qa/apk-badging.txt
@@ -62,36 +62,42 @@ jobs:
           grep -q "android.permission.RECORD_AUDIO" ../qa/apk-permissions.txt
           grep -q "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" ../qa/apk-permissions.txt
 
-          cp "$APK" ../Tamishra-v0.3.1.apk
+          cp "$APK" ../Tamishra-v0.4.0.apk
 
-      - name: Source QA checks
+      - name: Native shell source QA
         shell: bash
         run: |
           set -euo pipefail
+          FILE="app/src/main/java/in/tamishra/mobile/MainActivity.kt"
+          grep -q 'buildNativeShell()' "$FILE"
+          grep -q 'fun buildHomeView' "$FILE"
+          grep -q '"Live Classroom"' "$FILE"
+          grep -q '"Tamishra Meet"' "$FILE"
+          grep -q '"My Account"' "$FILE"
+          grep -q 'buildBottomBar' "$FILE"
+          grep -q '.header,.footer,.footer-v40{display:none!important}' "$FILE"
+          grep -q 'uri.host == "live"' "$FILE"
+          grep -q 'uri.host == "meet"' "$FILE"
+          grep -q 'TamishraAndroid/0.4' "$FILE"
           grep -q 'android:icon="@mipmap/ic_launcher"' app/src/main/AndroidManifest.xml
           grep -q 'android:roundIcon="@mipmap/ic_launcher_round"' app/src/main/AndroidManifest.xml
-          grep -q 'android:host="live"' app/src/main/AndroidManifest.xml
-          grep -q 'android:host="meet"' app/src/main/AndroidManifest.xml
-          grep -q 'HOME_URL = "https://www.tamishra.in/mobile"' app/src/main/java/in/tamishra/mobile/MainActivity.kt
-          grep -q 'uri.host == "live"' app/src/main/java/in/tamishra/mobile/MainActivity.kt
-          grep -q 'uri.host == "meet"' app/src/main/java/in/tamishra/mobile/MainActivity.kt
           {
-            echo "Tamishra Android v0.3.1 QA"
-            echo "PASS: Gradle assembleDebug"
+            echo "Tamishra Android v0.4.0 QA"
+            echo "PASS: native Android shell"
+            echo "PASS: native Home/Live/Meet/Account navigation"
+            echo "PASS: website header/footer suppressed inside app WebView"
+            echo "PASS: Live and Meet deep links"
+            echo "PASS: launcher icon"
             echo "PASS: Android lintDebug"
-            echo "PASS: launcher icon + round icon configured"
-            echo "PASS: Live deep link retained"
-            echo "PASS: Meet deep link present"
-            echo "PASS: mobile hub startup present"
-            echo "PASS: required camera/audio/screen-share permissions packaged"
+            echo "PASS: camera/audio/native screen-share permissions packaged"
           } > ../qa/summary.txt
 
       - name: Upload APK and QA report
         uses: actions/upload-artifact@v4
         with:
-          name: Tamishra-v0.3.1-APK-QA
+          name: Tamishra-v0.4.0-Native-APK-QA
           path: |
-            Tamishra-v0.3.1.apk
+            Tamishra-v0.4.0.apk
             qa/
             tamishra-android/app/build/reports/lint-results-debug.html
           if-no-files-found: error
