@@ -1,4 +1,4 @@
-name: Tamishra APK Public Builder
+name: Tamishra Meet APK Builder
 
 on:
   push:
@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: tamishra-android
+        working-directory: tamishra-meet
 
     steps:
       - name: Checkout
@@ -35,10 +35,10 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"             "platform-tools"             "platforms;android-35"             "build-tools;35.0.0"
 
-      - name: Build APK and Android lint
+      - name: Build APK and lint
         run: gradle --no-daemon :app:assembleDebug :app:lintDebug --stacktrace
 
-      - name: APK QA checks
+      - name: APK QA
         shell: bash
         run: |
           set -euo pipefail
@@ -48,57 +48,52 @@ jobs:
           mkdir -p ../qa
           "$AAPT" dump badging "$APK" | tee ../qa/apk-badging.txt
           "$AAPT" dump permissions "$APK" | tee ../qa/apk-permissions.txt
-          unzip -l "$APK" | tee ../qa/apk-files.txt
           sha256sum "$APK" | tee ../qa/sha256.txt
 
-          grep -q "package: name='com.tamishra.mobile'" ../qa/apk-badging.txt
-          grep -q "versionCode='5'" ../qa/apk-badging.txt
-          grep -q "versionName='0.4.0'" ../qa/apk-badging.txt
-          grep -q "application-label:'Tamishra'" ../qa/apk-badging.txt
-          grep -q "launchable-activity: name='com.tamishra.mobile.MainActivity'" ../qa/apk-badging.txt
+          grep -q "package: name='com.tamishra.meet'" ../qa/apk-badging.txt
+          grep -q "versionCode='1'" ../qa/apk-badging.txt
+          grep -q "versionName='1.0.0'" ../qa/apk-badging.txt
+          grep -q "application-label:'Tamishra Meet'" ../qa/apk-badging.txt
+          grep -q "launchable-activity: name='com.tamishra.meet.MainActivity'" ../qa/apk-badging.txt
           grep -q "application-icon-" ../qa/apk-badging.txt
           grep -q "android.permission.INTERNET" ../qa/apk-permissions.txt
           grep -q "android.permission.CAMERA" ../qa/apk-permissions.txt
           grep -q "android.permission.RECORD_AUDIO" ../qa/apk-permissions.txt
           grep -q "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" ../qa/apk-permissions.txt
 
-          cp "$APK" ../Tamishra-v0.4.0.apk
+          cp "$APK" ../Tamishra-Meet-v1.0.0.apk
 
-      - name: Native shell source QA
+      - name: Source QA
         shell: bash
         run: |
           set -euo pipefail
-          FILE="app/src/main/java/in/tamishra/mobile/MainActivity.kt"
-          grep -q 'buildNativeShell()' "$FILE"
-          grep -q 'fun buildHomeView' "$FILE"
-          grep -q '"Live Classroom"' "$FILE"
-          grep -q '"Tamishra Meet"' "$FILE"
-          grep -q '"My Account"' "$FILE"
-          grep -q 'buildBottomBar' "$FILE"
-          grep -q '.header,.footer,.footer-v40{display:none!important}' "$FILE"
-          grep -q 'uri.host == "live"' "$FILE"
+          FILE="app/src/main/java/com/tamishra/meet/MainActivity.kt"
+          grep -q 'HOME_URL = "https://www.tamishra.in/meet"' "$FILE"
+          grep -q 'TamishraMeetAndroid/1.0' "$FILE"
           grep -q 'uri.host == "meet"' "$FILE"
-          grep -q 'TamishraAndroid/0.4' "$FILE"
-          grep -q 'android:icon="@mipmap/ic_launcher"' app/src/main/AndroidManifest.xml
-          grep -q 'android:roundIcon="@mipmap/ic_launcher_round"' app/src/main/AndroidManifest.xml
+          ! grep -q 'uri.host == "live"' "$FILE"
+          grep -q '.header,.footer,.footer-v40{display:none!important}' "$FILE"
+          grep -q 'android:host="meet"' app/src/main/AndroidManifest.xml
+          ! grep -q 'android:host="live"' app/src/main/AndroidManifest.xml
           {
-            echo "Tamishra Android v0.4.0 QA"
-            echo "PASS: native Android shell"
-            echo "PASS: native Home/Live/Meet/Account navigation"
-            echo "PASS: website header/footer suppressed inside app WebView"
-            echo "PASS: Live and Meet deep links"
+            echo "Tamishra Meet Android v1.0.0 QA"
+            echo "PASS: standalone package com.tamishra.meet"
+            echo "PASS: Meet-only startup"
+            echo "PASS: no Live Classroom deep link"
+            echo "PASS: Meet deep link"
+            echo "PASS: native Android screen sharing bridge"
+            echo "PASS: camera and microphone permissions"
             echo "PASS: launcher icon"
             echo "PASS: Android lintDebug"
-            echo "PASS: camera/audio/native screen-share permissions packaged"
           } > ../qa/summary.txt
 
       - name: Upload APK and QA report
         uses: actions/upload-artifact@v4
         with:
-          name: Tamishra-v0.4.0-Native-APK-QA
+          name: Tamishra-Meet-v1.0.0-APK-QA
           path: |
-            Tamishra-v0.4.0.apk
+            Tamishra-Meet-v1.0.0.apk
             qa/
-            tamishra-android/app/build/reports/lint-results-debug.html
+            tamishra-meet/app/build/reports/lint-results-debug.html
           if-no-files-found: error
           retention-days: 7
