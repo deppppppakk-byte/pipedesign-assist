@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  build-apk:
+  build-and-qa:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -35,16 +35,64 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"             "platform-tools"             "platforms;android-35"             "build-tools;35.0.0"
 
-      - name: Build debug APK
-        run: gradle --no-daemon :app:assembleDebug --stacktrace
+      - name: Build APK and Android lint
+        run: gradle --no-daemon :app:assembleDebug :app:lintDebug --stacktrace
 
-      - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk ../Tamishra-v0.3.0.apk
+      - name: APK QA checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          test -f "$APK"
+          mkdir -p ../qa
+          "$AAPT" dump badging "$APK" | tee ../qa/apk-badging.txt
+          "$AAPT" dump permissions "$APK" | tee ../qa/apk-permissions.txt
+          unzip -l "$APK" | tee ../qa/apk-files.txt
+          sha256sum "$APK" | tee ../qa/sha256.txt
 
-      - name: Upload APK
+          grep -q "package: name='com.tamishra.mobile'" ../qa/apk-badging.txt
+          grep -q "versionCode='4'" ../qa/apk-badging.txt
+          grep -q "versionName='0.3.1'" ../qa/apk-badging.txt
+          grep -q "application-label:'Tamishra'" ../qa/apk-badging.txt
+          grep -q "launchable-activity: name='com.tamishra.mobile.MainActivity'" ../qa/apk-badging.txt
+          grep -q "application-icon-" ../qa/apk-badging.txt
+          grep -q "android.permission.INTERNET" ../qa/apk-permissions.txt
+          grep -q "android.permission.CAMERA" ../qa/apk-permissions.txt
+          grep -q "android.permission.RECORD_AUDIO" ../qa/apk-permissions.txt
+          grep -q "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" ../qa/apk-permissions.txt
+
+          cp "$APK" ../Tamishra-v0.3.1.apk
+
+      - name: Source QA checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'android:icon="@mipmap/ic_launcher"' app/src/main/AndroidManifest.xml
+          grep -q 'android:roundIcon="@mipmap/ic_launcher_round"' app/src/main/AndroidManifest.xml
+          grep -q 'android:host="live"' app/src/main/AndroidManifest.xml
+          grep -q 'android:host="meet"' app/src/main/AndroidManifest.xml
+          grep -q 'HOME_URL = "https://www.tamishra.in/mobile"' app/src/main/java/in/tamishra/mobile/MainActivity.kt
+          grep -q 'uri.host == "live"' app/src/main/java/in/tamishra/mobile/MainActivity.kt
+          grep -q 'uri.host == "meet"' app/src/main/java/in/tamishra/mobile/MainActivity.kt
+          {
+            echo "Tamishra Android v0.3.1 QA"
+            echo "PASS: Gradle assembleDebug"
+            echo "PASS: Android lintDebug"
+            echo "PASS: launcher icon + round icon configured"
+            echo "PASS: Live deep link retained"
+            echo "PASS: Meet deep link present"
+            echo "PASS: mobile hub startup present"
+            echo "PASS: required camera/audio/screen-share permissions packaged"
+          } > ../qa/summary.txt
+
+      - name: Upload APK and QA report
         uses: actions/upload-artifact@v4
         with:
-          name: Tamishra-v0.3.0-APK
-          path: Tamishra-v0.3.0.apk
+          name: Tamishra-v0.3.1-APK-QA
+          path: |
+            Tamishra-v0.3.1.apk
+            qa/
+            tamishra-android/app/build/reports/lint-results-debug.html
           if-no-files-found: error
           retention-days: 7
