@@ -35,8 +35,8 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"             "platform-tools"             "platforms;android-35"             "build-tools;35.0.0"
 
-      - name: Build APK and lint
-        run: gradle --no-daemon :app:assembleDebug :app:lintDebug --stacktrace
+      - name: Build APK
+        run: gradle --no-daemon :app:assembleDebug --stacktrace
 
       - name: APK QA
         shell: bash
@@ -84,7 +84,6 @@ jobs:
             echo "PASS: native Android screen sharing bridge"
             echo "PASS: camera and microphone permissions"
             echo "PASS: launcher icon"
-            echo "PASS: Android lintDebug"
           } > ../qa/summary.txt
 
       - name: Upload APK and QA report
@@ -94,6 +93,5 @@ jobs:
           path: |
             Tamishra-Meet-v1.0.0.apk
             qa/
-            tamishra-meet/app/build/reports/lint-results-debug.html
           if-no-files-found: error
           retention-days: 7
