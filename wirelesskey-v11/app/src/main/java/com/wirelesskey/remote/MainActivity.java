@@ -146,8 +146,9 @@ public class MainActivity extends Activity {
         return host;
     }
 
-    private String tokenKey(String host) {
-        return "trusted_" + host.replaceAll("[^A-Za-z0-9]", "_");
+    private String tokenKey(String certificateFingerprint) {
+        String identity = certificateFingerprint == null ? "" : certificateFingerprint.trim().toLowerCase(Locale.US);
+        return "trusted_cert_" + identity.replaceAll("[^A-Za-z0-9]", "_");
     }
 
     private String certKey(String host) {
@@ -305,11 +306,11 @@ public class MainActivity extends Activity {
                     auth.put("type", "auth");
                     auth.put("code", currentCode == null ? "" : currentCode.trim());
 
-                    String savedToken = prefs.getString(tokenKey(host), "");
+                    String savedToken = prefs.getString(tokenKey(finalFingerprint), "");
                     if (!savedToken.isEmpty()) auth.put("token", savedToken);
 
                     auth.put("device", android.os.Build.MODEL == null ? "Android" : android.os.Build.MODEL);
-                    auth.put("appVersion", "3.0");
+                    auth.put("appVersion", "3.1");
                     webSocket.send(auth.toString());
                     callback("authenticating", "Secure authentication...");
                 } catch (Exception e) {
@@ -333,7 +334,7 @@ public class MainActivity extends Activity {
 
                             String token = obj.optString("token", "");
                             if (!token.isEmpty()) {
-                                prefs.edit().putString(tokenKey(host), token).apply();
+                                prefs.edit().putString(tokenKey(finalFingerprint), token).apply();
                             }
 
                             String pcName = obj.optString("pcName", "PC");
