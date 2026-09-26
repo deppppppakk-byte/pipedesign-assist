@@ -1,6 +1,6 @@
 @echo off
-title WirelessKey 3.0 - Private Network Firewall Setup
-echo WirelessKey 3.0 needs local-network access for:
+title WirelessKey 3.1 - Private Network Firewall Setup
+echo WirelessKey 3.1 needs local-network access for:
 echo   TCP 8765-8775  - encrypted WSS keyboard/mouse traffic
 echo   UDP 8766       - automatic PC discovery
 echo.
@@ -10,10 +10,10 @@ if not %errorlevel%==0 (
   pause
   exit /b 1
 )
-netsh advfirewall firewall delete rule name="WirelessKey 3.0 TCP" >nul 2>&1
-netsh advfirewall firewall delete rule name="WirelessKey 3.0 Discovery" >nul 2>&1
-netsh advfirewall firewall add rule name="WirelessKey 3.0 TCP" dir=in action=allow program="%~dp0WirelessKeyReceiver.exe" enable=yes profile=private protocol=TCP localport=8765-8775
-netsh advfirewall firewall add rule name="WirelessKey 3.0 Discovery" dir=in action=allow program="%~dp0WirelessKeyReceiver.exe" enable=yes profile=private protocol=UDP localport=8766
+netsh advfirewall firewall delete rule name="WirelessKey 3.1 TCP" >nul 2>&1
+netsh advfirewall firewall delete rule name="WirelessKey 3.1 Discovery" >nul 2>&1
+netsh advfirewall firewall add rule name="WirelessKey 3.1 TCP" dir=in action=allow program="%~dp0WirelessKeyReceiver.exe" enable=yes profile=private protocol=TCP localport=8765-8775
+netsh advfirewall firewall add rule name="WirelessKey 3.1 Discovery" dir=in action=allow program="%~dp0WirelessKeyReceiver.exe" enable=yes profile=private protocol=UDP localport=8766
 echo.
 echo Private-network firewall rules created successfully.
 pause
