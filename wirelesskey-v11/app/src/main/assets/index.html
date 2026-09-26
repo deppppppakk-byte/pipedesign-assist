@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
 <meta name="theme-color" content="#08111f"/>
-<title>WirelessKey 2.0</title>
+<title>WirelessKey 3.1</title>
 <style>
 :root{
   --bg:#08111f;--panel:#0f1a2b;--panel2:#142238;--key:#1d2b40;--key2:#243650;
@@ -23,6 +23,10 @@ button{cursor:pointer}
 #devices{width:135px;display:none}
 .tbtn{height:27px;border:1px solid var(--line);border-radius:7px;background:#16263c;color:#dbeafe;font-size:10px;font-weight:700;padding:0 8px}
 .tbtn.primary{background:#1d4ed8;border-color:#2563eb;color:white}.tbtn.active{background:#164e63;border-color:#22d3ee}
+.contextPill{height:24px;display:flex;align-items:center;gap:4px;padding:0 7px;border:1px solid #2b415e;border-radius:999px;background:#0c1728;color:#9fb5d0;font-size:8px;white-space:nowrap;max-width:190px;overflow:hidden}
+.contextPill span,.contextPill b{overflow:hidden;text-overflow:ellipsis}
+.contextPill b{color:#dbeafe;font-weight:800;max-width:85px}
+.contextPill .latency{color:#7dd3fc;font-variant-numeric:tabular-nums;flex:none}
 .status{margin-left:auto;display:flex;align-items:center;gap:5px;white-space:nowrap;font-size:9px;color:var(--muted)}
 .dot{width:7px;height:7px;border-radius:50%;background:#64748b;box-shadow:0 0 0 2px rgba(100,116,139,.12)}
 .status.ok .dot{background:var(--ok);box-shadow:0 0 0 2px rgba(52,211,153,.14)}
@@ -77,7 +81,7 @@ button{cursor:pointer}
 <body>
 <div class="app" id="app">
   <div class="topbar">
-    <div class="brand">Wireless<b>Key 3.0</b></div>
+    <div class="brand">Wireless<b>Key 3.1</b></div>
     <select id="devices"><option value="">Discovered PCs</option></select>
     <button class="tbtn" id="findBtn">Find PC</button>
     <input id="host" placeholder="PC IP"/>
@@ -333,11 +337,11 @@ const kb=document.getElementById('keyboard');
 rows.forEach(rr=>{const row=document.createElement('div');row.className='row';rr.forEach(k=>row.appendChild(makeKey(k)));kb.appendChild(row)});
 updateLabels();
 
-// Precision multi-touch trackpad
+// Precision multi-touch trackpad with gesture arbitration
 const pad=document.getElementById('pad');
 let pointers=new Map(),primaryId=null,start=null,lastTap=0,dragging=false,moved=false,holdTimer=null;
 let pendingDX=0,pendingDY=0,pendingWheel=0,pendingHWheel=0,rafScheduled=false;
-let gesture=null;
+let gesture=null,suppressMultiUntilClear=false;
 const sensitivity=1.55;
 
 function centroid(){
@@ -360,50 +364,88 @@ function flushPointer(){
 }
 function scheduleFlush(){if(!rafScheduled){rafScheduled=true;requestAnimationFrame(flushPointer)}}
 function beginGesture(){
- const cc=centroid();
- gesture={count:pointers.size,startX:cc.x,startY:cc.y,lastX:cc.x,lastY:cc.y,startTime:Date.now(),moved:false,startDistance:distance2(),lastDistance:distance2(),pinchAccum:0};
+ const cc=centroid(),dist=distance2();
+ gesture={
+   count:pointers.size,maxCount:pointers.size,
+   startX:cc.x,startY:cc.y,lastX:cc.x,lastY:cc.y,
+   startTime:Date.now(),moved:false,mode:'undecided',
+   startDistance:dist,lastDistance:dist,pinchAccum:0
+ };
 }
 pad.addEventListener('pointerdown',e=>{
- e.preventDefault();haptic();pad.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+ e.preventDefault();haptic();
+ if(pointers.size===0)suppressMultiUntilClear=false;
+ pad.setPointerCapture(e.pointerId);
+ pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+
+ if(suppressMultiUntilClear)return;
+
  if(pointers.size===1){
    primaryId=e.pointerId;start={x:e.clientX,y:e.clientY};moved=false;dragging=false;gesture=null;
    clearTimeout(holdTimer);
-   holdTimer=setTimeout(()=>{if(!moved&&pointers.size===1){dragging=true;send({type:'mouse',button:'left',action:'down'})}},480);
+   holdTimer=setTimeout(()=>{
+     if(!moved&&pointers.size===1&&!suppressMultiUntilClear){
+       dragging=true;send({type:'mouse',button:'left',action:'down'});
+     }
+   },480);
  }else{
-   clearTimeout(holdTimer);primaryId=null;moved=true;beginGesture();
+   clearTimeout(holdTimer);
+   if(dragging){send({type:'mouse',button:'left',action:'up'});dragging=false}
+   primaryId=null;moved=true;beginGesture();
  }
 });
 pad.addEventListener('pointermove',e=>{
  if(!pointers.has(e.pointerId))return;
  const old=pointers.get(e.pointerId),cur={x:e.clientX,y:e.clientY};
  pointers.set(e.pointerId,cur);
+ if(suppressMultiUntilClear)return;
 
  if(pointers.size>=2){
    if(!gesture||gesture.count!==pointers.size)beginGesture();
+
    const cc=centroid();
    const dx=cc.x-gesture.lastX,dy=cc.y-gesture.lastY;
    gesture.lastX=cc.x;gesture.lastY=cc.y;
-   if(Math.abs(cc.x-gesture.startX)+Math.abs(cc.y-gesture.startY)>8)gesture.moved=true;
+   gesture.maxCount=Math.max(gesture.maxCount,pointers.size);
+
+   const totalX=cc.x-gesture.startX,totalY=cc.y-gesture.startY;
+   const centroidTravel=Math.abs(totalX)+Math.abs(totalY);
+   if(centroidTravel>8)gesture.moved=true;
 
    if(pointers.size===2){
-     pendingWheel+=-dy*5.2;
-     pendingHWheel+=dx*5.2;
      const dist=distance2();
-     const d=dist-gesture.lastDistance;
+     const distDelta=dist-gesture.lastDistance;
+     const distanceTravel=Math.abs(dist-gesture.startDistance);
      gesture.lastDistance=dist;
-     gesture.pinchAccum+=d;
-     if(Math.abs(gesture.pinchAccum)>22){
-       sendKey(gesture.pinchAccum>0?'+':'-',['CTRL']);
-       gesture.pinchAccum=0;
+
+     if(gesture.mode==='undecided'){
+       if(distanceTravel>11 && distanceTravel>centroidTravel*0.55){
+         gesture.mode='pinch';
+       }else if(centroidTravel>7){
+         gesture.mode=Math.abs(totalX)>Math.abs(totalY)*1.15?'hscroll':'vscroll';
+       }
      }
-     scheduleFlush();
+
+     if(gesture.mode==='pinch'){
+       gesture.pinchAccum+=distDelta;
+       if(Math.abs(gesture.pinchAccum)>20){
+         sendKey(gesture.pinchAccum>0?'+':'-',['CTRL']);
+         gesture.pinchAccum=0;
+       }
+     }else if(gesture.mode==='hscroll'){
+       pendingHWheel+=dx*5.0;scheduleFlush();
+     }else if(gesture.mode==='vscroll'){
+       pendingWheel+=-dy*5.0;scheduleFlush();
+     }
    }
    return;
  }
 
  if(primaryId===e.pointerId){
    if(start&&Math.abs(cur.x-start.x)+Math.abs(cur.y-start.y)>5){moved=true;clearTimeout(holdTimer)}
-   pendingDX+=(cur.x-old.x)*sensitivity;pendingDY+=(cur.y-old.y)*sensitivity;scheduleFlush();
+   pendingDX+=(cur.x-old.x)*sensitivity;
+   pendingDY+=(cur.y-old.y)*sensitivity;
+   scheduleFlush();
  }
 });
 function finishPointer(e){
@@ -412,18 +454,24 @@ function finishPointer(e){
  const endedGesture=gesture?{...gesture}:null;
  pointers.delete(e.pointerId);
 
- if(before>=2 && endedGesture && pointers.size<endedGesture.count){
+ if(suppressMultiUntilClear){
+   if(pointers.size===0){suppressMultiUntilClear=false;gesture=null}
+   return;
+ }
+
+ if(before>=2 && endedGesture){
    const elapsed=Date.now()-endedGesture.startTime;
    const totalX=endedGesture.lastX-endedGesture.startX;
    const totalY=endedGesture.lastY-endedGesture.startY;
+   const absX=Math.abs(totalX),absY=Math.abs(totalY);
 
-   if(endedGesture.count===2 && pointers.size===1){
-     if(!endedGesture.moved && elapsed<350){
+   if(endedGesture.maxCount===2){
+     if(endedGesture.mode==='undecided'&&!endedGesture.moved&&elapsed<360){
        send({type:'mouse',button:'right',action:'click'});
      }
-   }else if(endedGesture.count===3 && pointers.size===2){
-     if(Math.abs(totalX)>55 || Math.abs(totalY)>55){
-       if(Math.abs(totalX)>Math.abs(totalY)){
+   }else if(endedGesture.maxCount===3){
+     if(absX>58||absY>58){
+       if(absX>absY){
          sendKey('TAB',totalX>0?['ALT']:['ALT','SHIFT']);
        }else if(totalY<0){
          sendKey('TAB',['WIN']);
@@ -431,29 +479,36 @@ function finishPointer(e){
          sendKey('D',['WIN']);
        }
      }
-   }else if(endedGesture.count===4 && pointers.size===3){
-     if(Math.abs(totalX)>55){
+   }else if(endedGesture.maxCount>=4){
+     if(absX>58){
        sendKey(totalX>0?'RIGHT':'LEFT',['CTRL','WIN']);
      }
    }
-   if(pointers.size>=2)beginGesture(); else gesture=null;
+
+   suppressMultiUntilClear=pointers.size>0;
+   gesture=null;
+   primaryId=null;start=null;moved=true;
    return;
  }
 
  if(primaryId===e.pointerId){
    const now=Date.now();
-   if(dragging){send({type:'mouse',button:'left',action:'up'})}
-   else if(!moved){
-     if(now-lastTap<320){send({type:'mouse',button:'left',action:'double'})}
+   if(dragging){
+     send({type:'mouse',button:'left',action:'up'});
+   }else if(!moved){
+     if(now-lastTap<320)send({type:'mouse',button:'left',action:'double'});
      else send({type:'mouse',button:'left',action:'click'});
      lastTap=now;
    }
    primaryId=null;start=null;dragging=false;moved=false;
  }
+ if(pointers.size===0){gesture=null;suppressMultiUntilClear=false}
 }
 pad.addEventListener('pointerup',finishPointer);
 pad.addEventListener('pointercancel',finishPointer);
-document.querySelectorAll('[data-mouse]').forEach(b=>b.addEventListener('pointerdown',e=>{e.preventDefault();haptic();send({type:'mouse',button:b.dataset.mouse,action:'click'})}));
+document.querySelectorAll('[data-mouse]').forEach(b=>b.addEventListener('pointerdown',e=>{
+ e.preventDefault();haptic();send({type:'mouse',button:b.dataset.mouse,action:'click'});
+}));
 
 // Numpad
 const numSpec=[
@@ -491,8 +546,8 @@ const profileShortcuts={
   ['Trim','cmd','TR'],['Extend','cmd','EX'],['Offset','cmd','O'],['Zoom','cmd','Z'],['Properties','key','1',['CTRL']]
  ],
  revit:[
-  ['Save','key','S',['CTRL']],['Undo','key','Z',['CTRL']],['Redo','key','Y',['CTRL']],['Visibility','cmd','VG'],
-  ['Align','cmd','AL'],['Trim/Extend','cmd','TR'],['Move','cmd','MV'],['Copy','cmd','CO'],['Delete','key','DELETE',[]],['Escape','key','ESC',[]]
+  ['Save','key','S',['CTRL']],['Undo','key','Z',['CTRL']],['Redo','key','Y',['CTRL']],['Visibility','sequence','VG'],
+  ['Align','sequence','AL'],['Trim/Extend','sequence','TR'],['Move','sequence','MV'],['Copy','sequence','CO'],['Delete','key','DELETE',[]],['Escape','key','ESC',[]]
  ],
  excel:[
   ['Copy','key','C',['CTRL']],['Paste','key','V',['CTRL']],['Save','key','S',['CTRL']],['Find','key','F',['CTRL']],
@@ -519,9 +574,15 @@ const profileShortcuts={
 
 function fireProfileAction(action){
  const [label,type,key,mods]=action;
- if(type==='cmd'){sendText(key);setTimeout(()=>sendKey('ENTER'),20)}
- else if(type==='text')sendText(key);
- else sendKey(key,mods||[]);
+ if(type==='cmd'){
+   sendText(key);setTimeout(()=>sendKey('ENTER'),24);
+ }else if(type==='sequence'){
+   [...String(key)].forEach((ch,i)=>setTimeout(()=>sendKey(ch),i*42));
+ }else if(type==='text'){
+   sendText(key);
+ }else{
+   sendKey(key,mods||[]);
+ }
 }
 function renderShortcuts(){
  const sg=document.getElementById('shortGrid');sg.innerHTML='';
