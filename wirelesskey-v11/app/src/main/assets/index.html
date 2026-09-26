@@ -77,13 +77,14 @@ button{cursor:pointer}
 <body>
 <div class="app" id="app">
   <div class="topbar">
-    <div class="brand">Wireless<b>Key 2.0</b></div>
+    <div class="brand">Wireless<b>Key 3.0</b></div>
     <select id="devices"><option value="">Discovered PCs</option></select>
     <button class="tbtn" id="findBtn">Find PC</button>
     <input id="host" placeholder="PC IP"/>
     <input id="code" placeholder="6-digit" maxlength="6" inputmode="numeric"/>
     <button class="tbtn primary" id="connectBtn">Connect</button>
     <button class="tbtn active" id="hapticBtn">Haptic</button>
+    <div class="contextPill"><span>App</span><b id="activeApp">Desktop</b><span class="latency" id="latency">— ms</span></div>
     <div class="status" id="status"><span class="dot"></span><span id="statusText">Offline</span></div>
   </div>
 
@@ -332,34 +333,74 @@ const kb=document.getElementById('keyboard');
 rows.forEach(rr=>{const row=document.createElement('div');row.className='row';rr.forEach(k=>row.appendChild(makeKey(k)));kb.appendChild(row)});
 updateLabels();
 
-// Precision touchpad with 60Hz batching
+// Precision multi-touch trackpad
 const pad=document.getElementById('pad');
-let pointers=new Map(),primaryId=null,start=null,lastTap=0,dragging=false,moved=false,holdTimer=null,lastTwoY=null;
-let pendingDX=0,pendingDY=0,pendingWheel=0,rafScheduled=false;
+let pointers=new Map(),primaryId=null,start=null,lastTap=0,dragging=false,moved=false,holdTimer=null;
+let pendingDX=0,pendingDY=0,pendingWheel=0,pendingHWheel=0,rafScheduled=false;
+let gesture=null;
 const sensitivity=1.55;
+
+function centroid(){
+ const ps=[...pointers.values()];
+ if(!ps.length)return{x:0,y:0};
+ return{x:ps.reduce((s,p)=>s+p.x,0)/ps.length,y:ps.reduce((s,p)=>s+p.y,0)/ps.length};
+}
+function distance2(){
+ const ps=[...pointers.values()];
+ if(ps.length<2)return 0;
+ return Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y);
+}
 function flushPointer(){
  rafScheduled=false;
- if(Math.abs(pendingDX)+Math.abs(pendingDY)>0.15){send({type:'move',dx:pendingDX,dy:pendingDY});pendingDX=0;pendingDY=0}
+ if(Math.abs(pendingDX)+Math.abs(pendingDY)>0.15){
+   send({type:'move',dx:pendingDX,dy:pendingDY});pendingDX=0;pendingDY=0;
+ }
  if(Math.abs(pendingWheel)>=1){send({type:'wheel',delta:pendingWheel});pendingWheel=0}
+ if(Math.abs(pendingHWheel)>=1){send({type:'hwheel',delta:pendingHWheel});pendingHWheel=0}
 }
 function scheduleFlush(){if(!rafScheduled){rafScheduled=true;requestAnimationFrame(flushPointer)}}
+function beginGesture(){
+ const cc=centroid();
+ gesture={count:pointers.size,startX:cc.x,startY:cc.y,lastX:cc.x,lastY:cc.y,startTime:Date.now(),moved:false,startDistance:distance2(),lastDistance:distance2(),pinchAccum:0};
+}
 pad.addEventListener('pointerdown',e=>{
  e.preventDefault();haptic();pad.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
  if(pointers.size===1){
-   primaryId=e.pointerId;start={x:e.clientX,y:e.clientY};moved=false;dragging=false;
-   clearTimeout(holdTimer);holdTimer=setTimeout(()=>{if(!moved&&pointers.size===1){dragging=true;send({type:'mouse',button:'left',action:'down'})}},480);
- }else if(pointers.size===2){
-   clearTimeout(holdTimer);const ps=[...pointers.values()];lastTwoY=(ps[0].y+ps[1].y)/2;
+   primaryId=e.pointerId;start={x:e.clientX,y:e.clientY};moved=false;dragging=false;gesture=null;
+   clearTimeout(holdTimer);
+   holdTimer=setTimeout(()=>{if(!moved&&pointers.size===1){dragging=true;send({type:'mouse',button:'left',action:'down'})}},480);
+ }else{
+   clearTimeout(holdTimer);primaryId=null;moved=true;beginGesture();
  }
 });
 pad.addEventListener('pointermove',e=>{
  if(!pointers.has(e.pointerId))return;
- const old=pointers.get(e.pointerId),cur={x:e.clientX,y:e.clientY};pointers.set(e.pointerId,cur);
- if(pointers.size===2){
-   clearTimeout(holdTimer);const ps=[...pointers.values()];const y=(ps[0].y+ps[1].y)/2;
-   if(lastTwoY!==null){const dy=y-lastTwoY;if(Math.abs(dy)>1.3){pendingWheel+=dy>0?-80:80;lastTwoY=y;scheduleFlush()}}
+ const old=pointers.get(e.pointerId),cur={x:e.clientX,y:e.clientY};
+ pointers.set(e.pointerId,cur);
+
+ if(pointers.size>=2){
+   if(!gesture||gesture.count!==pointers.size)beginGesture();
+   const cc=centroid();
+   const dx=cc.x-gesture.lastX,dy=cc.y-gesture.lastY;
+   gesture.lastX=cc.x;gesture.lastY=cc.y;
+   if(Math.abs(cc.x-gesture.startX)+Math.abs(cc.y-gesture.startY)>8)gesture.moved=true;
+
+   if(pointers.size===2){
+     pendingWheel+=-dy*5.2;
+     pendingHWheel+=dx*5.2;
+     const dist=distance2();
+     const d=dist-gesture.lastDistance;
+     gesture.lastDistance=dist;
+     gesture.pinchAccum+=d;
+     if(Math.abs(gesture.pinchAccum)>22){
+       sendKey(gesture.pinchAccum>0?'+':'-',['CTRL']);
+       gesture.pinchAccum=0;
+     }
+     scheduleFlush();
+   }
    return;
  }
+
  if(primaryId===e.pointerId){
    if(start&&Math.abs(cur.x-start.x)+Math.abs(cur.y-start.y)>5){moved=true;clearTimeout(holdTimer)}
    pendingDX+=(cur.x-old.x)*sensitivity;pendingDY+=(cur.y-old.y)*sensitivity;scheduleFlush();
@@ -367,9 +408,38 @@ pad.addEventListener('pointermove',e=>{
 });
 function finishPointer(e){
  clearTimeout(holdTimer);
- const wasTwo=pointers.size===2;
+ const before=pointers.size;
+ const endedGesture=gesture?{...gesture}:null;
  pointers.delete(e.pointerId);
- if(wasTwo&&pointers.size===1){lastTwoY=null;primaryId=null;start=null;moved=true;return}
+
+ if(before>=2 && endedGesture && pointers.size<endedGesture.count){
+   const elapsed=Date.now()-endedGesture.startTime;
+   const totalX=endedGesture.lastX-endedGesture.startX;
+   const totalY=endedGesture.lastY-endedGesture.startY;
+
+   if(endedGesture.count===2 && pointers.size===1){
+     if(!endedGesture.moved && elapsed<350){
+       send({type:'mouse',button:'right',action:'click'});
+     }
+   }else if(endedGesture.count===3 && pointers.size===2){
+     if(Math.abs(totalX)>55 || Math.abs(totalY)>55){
+       if(Math.abs(totalX)>Math.abs(totalY)){
+         sendKey('TAB',totalX>0?['ALT']:['ALT','SHIFT']);
+       }else if(totalY<0){
+         sendKey('TAB',['WIN']);
+       }else{
+         sendKey('D',['WIN']);
+       }
+     }
+   }else if(endedGesture.count===4 && pointers.size===3){
+     if(Math.abs(totalX)>55){
+       sendKey(totalX>0?'RIGHT':'LEFT',['CTRL','WIN']);
+     }
+   }
+   if(pointers.size>=2)beginGesture(); else gesture=null;
+   return;
+ }
+
  if(primaryId===e.pointerId){
    const now=Date.now();
    if(dragging){send({type:'mouse',button:'left',action:'up'})}
@@ -380,9 +450,9 @@ function finishPointer(e){
    }
    primaryId=null;start=null;dragging=false;moved=false;
  }
- if(pointers.size<2)lastTwoY=null;
 }
-pad.addEventListener('pointerup',finishPointer);pad.addEventListener('pointercancel',finishPointer);
+pad.addEventListener('pointerup',finishPointer);
+pad.addEventListener('pointercancel',finishPointer);
 document.querySelectorAll('[data-mouse]').forEach(b=>b.addEventListener('pointerdown',e=>{e.preventDefault();haptic();send({type:'mouse',button:b.dataset.mouse,action:'click'})}));
 
 // Numpad
@@ -405,14 +475,70 @@ const media=[
 const mg=document.getElementById('mediaGrid');
 media.forEach(([label,key])=>{const b=document.createElement('button');b.textContent=label;b.addEventListener('pointerdown',e=>{e.preventDefault();haptic();sendKey(key)});mg.appendChild(b)});
 
-// Shortcuts
-const shortcuts=[
- ['Copy','C',['CTRL']],['Paste','V',['CTRL']],['Cut','X',['CTRL']],['Undo','Z',['CTRL']],
- ['Redo','Y',['CTRL']],['Save','S',['CTRL']],['Find','F',['CTRL']],['Select All','A',['CTRL']],
- ['Alt + Tab','TAB',['ALT']],['Desktop','D',['WIN']],['Explorer','E',['WIN']],['Task Manager','ESC',['CTRL','SHIFT']]
-];
-const sg=document.getElementById('shortGrid');
-shortcuts.forEach(([label,key,mods])=>{const b=document.createElement('button');b.textContent=label;b.addEventListener('pointerdown',e=>{e.preventDefault();haptic();sendKey(key,mods)});sg.appendChild(b)});
+// Smart application profiles and contextual shortcuts
+let currentProfile='standard';
+const activeAppEl=document.getElementById('activeApp');
+const latencyEl=document.getElementById('latency');
+
+const profileShortcuts={
+ standard:[
+  ['Copy','key','C',['CTRL']],['Paste','key','V',['CTRL']],['Undo','key','Z',['CTRL']],['Redo','key','Y',['CTRL']],
+  ['Save','key','S',['CTRL']],['Find','key','F',['CTRL']],['Alt + Tab','key','TAB',['ALT']],['Desktop','key','D',['WIN']],
+  ['Explorer','key','E',['WIN']],['Task Manager','key','ESC',['CTRL','SHIFT']]
+ ],
+ autocad:[
+  ['Line','cmd','L'],['Polyline','cmd','PL'],['Move','cmd','M'],['Copy','cmd','CO'],['Rotate','cmd','RO'],
+  ['Trim','cmd','TR'],['Extend','cmd','EX'],['Offset','cmd','O'],['Zoom','cmd','Z'],['Properties','key','1',['CTRL']]
+ ],
+ revit:[
+  ['Save','key','S',['CTRL']],['Undo','key','Z',['CTRL']],['Redo','key','Y',['CTRL']],['Visibility','cmd','VG'],
+  ['Align','cmd','AL'],['Trim/Extend','cmd','TR'],['Move','cmd','MV'],['Copy','cmd','CO'],['Delete','key','DELETE',[]],['Escape','key','ESC',[]]
+ ],
+ excel:[
+  ['Copy','key','C',['CTRL']],['Paste','key','V',['CTRL']],['Save','key','S',['CTRL']],['Find','key','F',['CTRL']],
+  ['Edit Cell','key','F2',[]],['Format','key','1',['CTRL']],['Insert','key','+',['CTRL']],['Delete Row','key','-',['CTRL']],
+  ['Top','key','UP',['CTRL']],['Bottom','key','DOWN',['CTRL']]
+ ],
+ powerpoint:[
+  ['Start Show','key','F5',[]],['From Current','key','F5',['SHIFT']],['Next','key','RIGHT',[]],['Previous','key','LEFT',[]],
+  ['Black Screen','text','b'],['White Screen','text','w'],['End Show','key','ESC',[]],['Save','key','S',['CTRL']]
+ ],
+ vscode:[
+  ['Command Palette','key','P',['CTRL','SHIFT']],['Quick Open','key','P',['CTRL']],['Save','key','S',['CTRL']],['Find','key','F',['CTRL']],
+  ['Toggle Terminal','key','`',['CTRL']],['Toggle Sidebar','key','B',['CTRL']],['Comment','key','/',['CTRL']],['Format','key','I',['CTRL','SHIFT']]
+ ],
+ browser:[
+  ['Address Bar','key','L',['CTRL']],['New Tab','key','T',['CTRL']],['Close Tab','key','W',['CTRL']],['Reopen Tab','key','T',['CTRL','SHIFT']],
+  ['Refresh','key','R',['CTRL']],['Back','key','LEFT',['ALT']],['Forward','key','RIGHT',['ALT']],['Find','key','F',['CTRL']]
+ ],
+ word:[
+  ['Save','key','S',['CTRL']],['Bold','key','B',['CTRL']],['Italic','key','I',['CTRL']],['Underline','key','U',['CTRL']],
+  ['Find','key','F',['CTRL']],['Undo','key','Z',['CTRL']],['Redo','key','Y',['CTRL']],['Print','key','P',['CTRL']]
+ ]
+};
+
+function fireProfileAction(action){
+ const [label,type,key,mods]=action;
+ if(type==='cmd'){sendText(key);setTimeout(()=>sendKey('ENTER'),20)}
+ else if(type==='text')sendText(key);
+ else sendKey(key,mods||[]);
+}
+function renderShortcuts(){
+ const sg=document.getElementById('shortGrid');sg.innerHTML='';
+ const list=profileShortcuts[currentProfile]||profileShortcuts.standard;
+ list.forEach(action=>{
+   const b=document.createElement('button');b.textContent=action[0];
+   b.addEventListener('pointerdown',e=>{e.preventDefault();haptic();fireProfileAction(action)});
+   sg.appendChild(b);
+ });
+}
+window.onPcContext=(ctx)=>{
+ currentProfile=ctx.profile||'standard';
+ activeAppEl.textContent=ctx.activeApp||'Desktop';
+ renderShortcuts();
+};
+window.onLatency=(ms)=>{latencyEl.textContent=ms+' ms'};
+renderShortcuts();
 
 document.addEventListener('contextmenu',e=>e.preventDefault());
 document.addEventListener('gesturestart',e=>e.preventDefault());
