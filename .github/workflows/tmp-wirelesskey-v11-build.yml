@@ -1,4 +1,4 @@
-name: Temporary WirelessKey v1.1 APK Build
+name: Temporary WirelessKey v1.1 Build
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ on:
       - 'wirelesskey-v11/**'
 
 jobs:
-  build-wirelesskey:
+  build-android:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -34,4 +34,30 @@ jobs:
         with:
           name: WirelessKey-v1.1-APK
           path: wirelesskey-v11/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+  build-windows-receiver:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install PyInstaller
+        run: python -m pip install --disable-pip-version-check pyinstaller
+      - name: Build receiver EXE
+        run: pyinstaller --onefile --console --name WirelessKeyReceiver wirelesskey-v11/receiver/wirelesskey_receiver.py
+      - name: Package receiver
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force package | Out-Null
+          Copy-Item dist/WirelessKeyReceiver.exe package/
+          Copy-Item wirelesskey-v11/receiver/ALLOW_FIREWALL_PRIVATE.bat package/
+          Copy-Item wirelesskey-v11/receiver/README.txt package/
+          Compress-Archive -Path package/* -DestinationPath WirelessKey-v1.1-Windows-Receiver.zip -Force
+      - name: Upload receiver
+        uses: actions/upload-artifact@v4
+        with:
+          name: WirelessKey-v1.1-Windows-Receiver
+          path: WirelessKey-v1.1-Windows-Receiver.zip
           if-no-files-found: error
