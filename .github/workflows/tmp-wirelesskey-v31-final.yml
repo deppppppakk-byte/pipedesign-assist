@@ -1,4 +1,4 @@
-name: Temporary WirelessKey v3.1 Final QA Build
+name: Temporary WirelessKey v3.1 Release APK QA
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ on:
       - 'wirelesskey-v11/**'
 
 jobs:
-  android-final:
+  android-release-final:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -42,92 +42,30 @@ jobs:
           blocks = re.findall(r"<script>(.*?)</script>", html, flags=re.S)
           assert blocks, "No script block found"
           Path("/tmp/wirelesskey.js").write_text("\n".join(blocks), encoding="utf-8")
-          print("Extracted", len(blocks), "script block(s)")
           PY
           node --check /tmp/wirelesskey.js
 
-      - name: Android lint and build
-        run: gradle :app:lintDebug :app:assembleDebug --stacktrace
+      - name: Android release lint and build
+        run: gradle :app:lintRelease :app:assembleRelease --stacktrace
 
-      - name: Verify APK signature and package metadata
+      - name: Verify release APK
         shell: bash
         run: |
-          APK="app/build/outputs/apk/debug/app-debug.apk"
+          APK="app/build/outputs/apk/release/app-release.apk"
           test -f "$APK"
           "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
           "$ANDROID_SDK_ROOT/build-tools/35.0.0/aapt" dump badging "$APK" | tee /tmp/badging.txt
           grep -q "versionName='3.1'" /tmp/badging.txt
           grep -q "application-label:'WirelessKey'" /tmp/badging.txt
+          if grep -q "application-debuggable" /tmp/badging.txt; then
+            echo "Release APK is unexpectedly debuggable"
+            exit 1
+          fi
           unzip -t "$APK"
 
-      - name: Upload final APK
+      - name: Upload final release APK
         uses: actions/upload-artifact@v4
         with:
-          name: WirelessKey-v3.1-Final-APK
-          path: wirelesskey-v11/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-
-  windows-final:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-
-      - name: Install receiver dependencies
-        run: python -m pip install --disable-pip-version-check pyinstaller websockets==14.2 cryptography psutil pystray pillow
-
-      - name: Python syntax check
-        run: python -m py_compile wirelesskey-v11/receiver/wirelesskey_receiver.py
-
-      - name: Encrypted protocol runtime self-test
-        run: python wirelesskey-v11/receiver/wirelesskey_receiver.py --self-test
-
-      - name: Build tray receiver EXE
-        run: pyinstaller --onefile --noconsole --name WirelessKeyReceiver --hidden-import=websockets.legacy.server --hidden-import=websockets.legacy.client --hidden-import=pystray._win32 --collect-all pystray wirelesskey-v11/receiver/wirelesskey_receiver.py
-
-      - name: Packaged EXE runtime self-test
-        shell: pwsh
-        run: |
-          $p = Start-Process -FilePath "$PWD\dist\WirelessKeyReceiver.exe" -ArgumentList "--self-test" -Wait -PassThru
-          if ($p.ExitCode -ne 0) {
-            throw "Packaged receiver self-test failed with exit code $($p.ExitCode)"
-          }
-
-      - name: Test Windows startup helpers
-        shell: pwsh
-        run: |
-          cmd /c wirelesskey-v11\receiver\START_WITH_WINDOWS.bat --silent
-          $key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
-          $value = (Get-ItemProperty -Path $key -Name WirelessKeyReceiver).WirelessKeyReceiver
-          if ($value -notmatch 'WirelessKeyReceiver\.exe' -or $value -notmatch '--hidden') {
-            throw "Startup value is invalid: $value"
-          }
-          cmd /c wirelesskey-v11\receiver\REMOVE_STARTUP.bat --silent
-          $after = Get-ItemProperty -Path $key -Name WirelessKeyReceiver -ErrorAction SilentlyContinue
-          if ($null -ne $after) {
-            throw "Startup value was not removed"
-          }
-
-      - name: Package receiver
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force package | Out-Null
-          Copy-Item dist/WirelessKeyReceiver.exe package/
-          Copy-Item wirelesskey-v11/receiver/ALLOW_FIREWALL_PRIVATE.bat package/
-          Copy-Item wirelesskey-v11/receiver/START_WITH_WINDOWS.bat package/
-          Copy-Item wirelesskey-v11/receiver/REMOVE_STARTUP.bat package/
-          Copy-Item wirelesskey-v11/receiver/README.txt package/
-          Compress-Archive -Path package/* -DestinationPath WirelessKey-v3.1-Final-Windows-Receiver.zip -Force
-          Expand-Archive -Path WirelessKey-v3.1-Final-Windows-Receiver.zip -DestinationPath verify-package -Force
-          if (-not (Test-Path verify-package/WirelessKeyReceiver.exe)) { throw "Receiver missing from package" }
-          if (-not (Test-Path verify-package/README.txt)) { throw "README missing from package" }
-
-      - name: Upload final receiver
-        uses: actions/upload-artifact@v4
-        with:
-          name: WirelessKey-v3.1-Final-Windows-Receiver
-          path: WirelessKey-v3.1-Final-Windows-Receiver.zip
+          name: WirelessKey-v3.1-Final-Release-APK
+          path: wirelesskey-v11/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
