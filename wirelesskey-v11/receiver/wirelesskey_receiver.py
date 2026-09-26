@@ -1,20 +1,30 @@
 import asyncio
 import ctypes
+import datetime
+import hashlib
 import json
 import os
 import random
 import secrets
 import socket
+import ssl
 import sys
 import threading
 import time
 from collections import defaultdict, deque
 from pathlib import Path
 
+import psutil
+import pystray
+from PIL import Image, ImageDraw
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
 from websockets.legacy.server import serve
 
 APP_NAME = "WirelessKey"
-VERSION = "2.0"
+VERSION = "3.0"
 DISCOVERY_PORT = 8766
 PORT_START = 8765
 PORT_END = 8775
@@ -53,10 +63,8 @@ class INPUT(ctypes.Structure):
 
 INPUT_MOUSE = 0
 INPUT_KEYBOARD = 1
-
 KEYEVENTF_KEYUP = 0x0002
 KEYEVENTF_UNICODE = 0x0004
-
 MOUSEEVENTF_MOVE = 0x0001
 MOUSEEVENTF_LEFTDOWN = 0x0002
 MOUSEEVENTF_LEFTUP = 0x0004
@@ -80,14 +88,19 @@ VK = {
     "MEDIA_NEXT": 0xB0, "MEDIA_PREV": 0xB1, "MEDIA_STOP": 0xB2,
     "MEDIA_PLAY": 0xB3,
 }
-
 MOD_VK = {"CTRL": 0x11, "ALT": 0x12, "SHIFT": 0x10, "WIN": 0x5B}
 
-state_lock = threading.Lock()
+state_lock = threading.RLock()
+shutdown_event = threading.Event()
+server_ready = threading.Event()
+failed_attempts = defaultdict(deque)
+connected_devices = {}
 ACTIVE_PORT = PORT_START
 PAIR_CODE = ""
 PAIR_CREATED = 0.0
-failed_attempts = defaultdict(deque)
+CERT_FINGERPRINT = ""
+ui = None
+tray_icon = None
 
 def app_data_dir():
     base = os.environ.get("APPDATA") or str(Path.home())
@@ -95,16 +108,17 @@ def app_data_dir():
     p.mkdir(parents=True, exist_ok=True)
     return p
 
-TRUST_FILE = app_data_dir() / "trusted_devices.json"
+DATA_DIR = app_data_dir()
+TRUST_FILE = DATA_DIR / "trusted_devices.json"
+CERT_FILE = DATA_DIR / "receiver_cert.pem"
+KEY_FILE = DATA_DIR / "receiver_key.pem"
 
 def load_trusted():
     try:
         data = json.loads(TRUST_FILE.read_text(encoding="utf-8"))
-        if isinstance(data, dict):
-            return data
+        return data if isinstance(data, dict) else {}
     except Exception:
-        pass
-    return {}
+        return {}
 
 trusted_devices = load_trusted()
 
@@ -116,33 +130,69 @@ def save_trusted():
     except Exception:
         pass
 
+def ensure_certificate():
+    global CERT_FINGERPRINT
+    if not CERT_FILE.exists() or not KEY_FILE.exists():
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, socket.gethostname())])
+        now = datetime.datetime.now(datetime.timezone.utc)
+        cert = (
+            x509.CertificateBuilder()
+            .subject_name(name)
+            .issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now - datetime.timedelta(days=1))
+            .not_valid_after(now + datetime.timedelta(days=3650))
+            .add_extension(
+                x509.SubjectAlternativeName([
+                    x509.DNSName(socket.gethostname()),
+                    x509.DNSName("localhost"),
+                ]),
+                critical=False,
+            )
+            .sign(key, hashes.SHA256())
+        )
+        KEY_FILE.write_bytes(
+            key.private_bytes(
+                serialization.Encoding.PEM,
+                serialization.PrivateFormat.PKCS8,
+                serialization.NoEncryption(),
+            )
+        )
+        CERT_FILE.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+
+    cert = x509.load_pem_x509_certificate(CERT_FILE.read_bytes())
+    CERT_FINGERPRINT = hashlib.sha256(cert.public_bytes(serialization.Encoding.DER)).hexdigest()
+    return CERT_FINGERPRINT
+
 def rotate_pair_code(reason=""):
     global PAIR_CODE, PAIR_CREATED
     with state_lock:
         PAIR_CODE = f"{random.randint(0, 999999):06d}"
         PAIR_CREATED = time.time()
-    if reason:
-        print(f"[Pairing] New code generated ({reason}): {PAIR_CODE}")
-    return PAIR_CODE
+        code = PAIR_CODE
+    if ui:
+        ui.safe_refresh()
+    return code
 
 def current_pair_code():
     with state_lock:
         if not PAIR_CODE or time.time() - PAIR_CREATED > PAIR_TTL_SECONDS:
-            return rotate_pair_code("previous code expired")
+            return rotate_pair_code("expired")
         return PAIR_CODE
 
 def pair_code_valid(code):
     with state_lock:
-        if not PAIR_CODE:
-            return False
-        if time.time() - PAIR_CREATED > PAIR_TTL_SECONDS:
-            return False
-        return secrets.compare_digest(str(code), PAIR_CODE)
+        return bool(
+            PAIR_CODE
+            and time.time() - PAIR_CREATED <= PAIR_TTL_SECONDS
+            and secrets.compare_digest(str(code), PAIR_CODE)
+        )
 
 def _send_key(vk, up=False):
-    flags = KEYEVENTF_KEYUP if up else 0
     ii = INPUT_I()
-    ii.ki = KEYBDINPUT(vk, 0, flags, 0, None)
+    ii.ki = KEYBDINPUT(vk, 0, KEYEVENTF_KEYUP if up else 0, 0, None)
     inp = INPUT(INPUT_KEYBOARD, ii)
     user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp))
 
@@ -166,7 +216,6 @@ def type_text(text):
 def press_key(name, modifiers=None):
     modifiers = [str(m).upper() for m in (modifiers or [])]
     pressed = []
-
     for mod in modifiers:
         vk = MOD_VK.get(mod)
         if vk:
@@ -176,8 +225,8 @@ def press_key(name, modifiers=None):
     key_name = str(name)
     upper = key_name.upper()
     vk = VK.get(upper)
-
     implicit_shift = False
+
     if vk is None and len(key_name) == 1:
         scan = user32.VkKeyScanW(ord(key_name))
         if scan != -1:
@@ -231,15 +280,12 @@ def mouse_button(button, action="click"):
 
 def mouse_wheel(delta):
     ii = INPUT_I()
-    ii.mi = MOUSEINPUT(
-        0, 0, ctypes.c_ulong(int(delta)).value, MOUSEEVENTF_WHEEL, 0, None
-    )
+    ii.mi = MOUSEINPUT(0, 0, ctypes.c_ulong(int(delta)).value, MOUSEEVENTF_WHEEL, 0, None)
     inp = INPUT(INPUT_MOUSE, ii)
     user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp))
 
 def process_event(event):
     etype = event.get("type")
-
     if etype == "text":
         type_text(str(event.get("text", ""))[:500])
     elif etype == "key":
@@ -247,10 +293,7 @@ def process_event(event):
     elif etype == "move":
         mouse_move(event.get("dx", 0), event.get("dy", 0))
     elif etype == "mouse":
-        mouse_button(
-            str(event.get("button", "left")),
-            str(event.get("action", "click"))
-        )
+        mouse_button(str(event.get("button", "left")), str(event.get("action", "click")))
     elif etype == "wheel":
         mouse_wheel(event.get("delta", 0))
     else:
@@ -261,7 +304,6 @@ def get_local_ip_for(remote_ip=None):
     if remote_ip:
         targets.append((remote_ip, 9))
     targets += [("8.8.8.8", 80), ("1.1.1.1", 80)]
-
     for target in targets:
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -272,7 +314,6 @@ def get_local_ip_for(remote_ip=None):
                 return ip
         except Exception:
             pass
-
     try:
         return socket.gethostbyname(socket.gethostname())
     except Exception:
@@ -286,8 +327,7 @@ def is_rate_limited(ip):
     return len(q) >= 5
 
 def mark_failed(ip):
-    q = failed_attempts[ip]
-    q.append(time.time())
+    failed_attempts[ip].append(time.time())
 
 def validate_auth(obj, client_ip):
     token = str(obj.get("token", "") or "")
@@ -296,6 +336,7 @@ def validate_auth(obj, client_ip):
 
     if token and token in trusted_devices:
         trusted_devices[token]["lastSeen"] = int(time.time())
+        trusted_devices[token]["device"] = device
         save_trusted()
         return True, token, device, ""
 
@@ -304,10 +345,7 @@ def validate_auth(obj, client_ip):
 
     if not pair_code_valid(code):
         mark_failed(client_ip)
-        if time.time() - PAIR_CREATED > PAIR_TTL_SECONDS:
-            rotate_pair_code("expired")
-            return False, "", device, "Pairing code expired. Use the new code shown on PC."
-        return False, "", device, "Wrong pairing code"
+        return False, "", device, "Wrong or expired pairing code"
 
     new_token = secrets.token_urlsafe(32)
     trusted_devices[new_token] = {
@@ -317,6 +355,59 @@ def validate_auth(obj, client_ip):
     }
     save_trusted()
     return True, new_token, device, ""
+
+def get_foreground_context():
+    try:
+        hwnd = user32.GetForegroundWindow()
+        if not hwnd:
+            return {"activeApp": "Desktop", "profile": "standard", "title": ""}
+
+        length = user32.GetWindowTextLengthW(hwnd)
+        buf = ctypes.create_unicode_buffer(length + 1)
+        user32.GetWindowTextW(hwnd, buf, length + 1)
+        title = buf.value[:140]
+
+        pid = ctypes.c_ulong()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        process_name = ""
+        try:
+            process_name = psutil.Process(pid.value).name().lower()
+        except Exception:
+            pass
+
+        blob = (process_name + " " + title).lower()
+        profile = "standard"
+        app_name = process_name or "Desktop"
+
+        rules = [
+            (("acad.exe", "autocad"), "AutoCAD", "autocad"),
+            (("revit.exe", "autodesk revit"), "Revit", "revit"),
+            (("excel.exe", "microsoft excel"), "Excel", "excel"),
+            (("powerpnt.exe", "powerpoint"), "PowerPoint", "powerpoint"),
+            (("winword.exe", "microsoft word"), "Word", "word"),
+            (("code.exe", "visual studio code"), "VS Code", "vscode"),
+            (("chrome.exe", "msedge.exe", "firefox.exe"), "Browser", "browser"),
+        ]
+        for needles, label, prof in rules:
+            if any(n in blob for n in needles):
+                app_name = label
+                profile = prof
+                break
+
+        return {"activeApp": app_name, "profile": profile, "title": title}
+    except Exception:
+        return {"activeApp": "Desktop", "profile": "standard", "title": ""}
+
+async def context_sender(ws):
+    last = None
+    while True:
+        await asyncio.sleep(1.0)
+        ctx = get_foreground_context()
+        signature = (ctx["activeApp"], ctx["profile"], ctx["title"])
+        if signature != last:
+            last = signature
+            payload = {"type": "context", **ctx}
+            await ws.send(json.dumps(payload))
 
 async def websocket_handler(ws, path):
     client_ip = "unknown"
@@ -328,6 +419,8 @@ async def websocket_handler(ws, path):
 
     authenticated = False
     device_name = "Android"
+    context_task = None
+    conn_id = id(ws)
 
     try:
         async for message in ws:
@@ -346,67 +439,74 @@ async def websocket_handler(ws, path):
 
                 ok, token, device_name, error = validate_auth(obj, client_ip)
                 if not ok:
-                    await ws.send(json.dumps({
-                        "type": "auth",
-                        "ok": False,
-                        "error": error
-                    }))
+                    await ws.send(json.dumps({"type": "auth", "ok": False, "error": error}))
                     await ws.close(code=1008, reason=error)
                     return
 
                 authenticated = True
+                connected_devices[conn_id] = {
+                    "device": device_name,
+                    "ip": client_ip,
+                    "since": int(time.time()),
+                }
+                if ui:
+                    ui.safe_refresh()
+
                 await ws.send(json.dumps({
                     "type": "auth",
                     "ok": True,
                     "token": token,
                     "pcName": socket.gethostname(),
-                    "version": VERSION
+                    "version": VERSION,
+                    "secure": True,
                 }))
 
-                print(f"[Connected] {device_name} from {client_ip}")
+                context_task = asyncio.create_task(context_sender(ws))
                 continue
 
             if msg_type == "event":
                 try:
-                    event = obj.get("event") or {}
-                    process_event(event)
+                    process_event(obj.get("event") or {})
                 except Exception as exc:
-                    await ws.send(json.dumps({
-                        "type": "status",
-                        "message": f"Input error: {exc}"
-                    }))
+                    await ws.send(json.dumps({"type": "status", "message": f"Input error: {exc}"}))
+            elif msg_type == "ping":
+                await ws.send(json.dumps({"type": "pong", "ts": obj.get("ts", 0)}))
 
     except Exception:
         pass
     finally:
-        if authenticated:
-            print(f"[Disconnected] {device_name} from {client_ip}")
+        if context_task:
+            context_task.cancel()
+        connected_devices.pop(conn_id, None)
+        if ui:
+            ui.safe_refresh()
 
-def discovery_loop(stop_event):
+def discovery_loop():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind(("0.0.0.0", DISCOVERY_PORT))
         sock.settimeout(1.0)
 
-        while not stop_event.is_set():
+        while not shutdown_event.is_set():
             try:
-                data, addr = sock.recvfrom(2048)
+                data, addr = sock.recvfrom(4096)
             except socket.timeout:
                 continue
             except Exception:
                 break
 
-            if data.strip() != b"WIRELESSKEY_DISCOVER_V2":
+            if data.strip() != b"WIRELESSKEY_DISCOVER_V3":
                 continue
 
-            ip = get_local_ip_for(addr[0])
             payload = json.dumps({
                 "name": socket.gethostname(),
                 "pcName": socket.gethostname(),
-                "ip": ip,
+                "ip": get_local_ip_for(addr[0]),
                 "port": ACTIVE_PORT,
-                "version": VERSION
+                "version": VERSION,
+                "secure": True,
+                "fingerprint": CERT_FINGERPRINT,
             }).encode("utf-8")
 
             try:
@@ -416,85 +516,280 @@ def discovery_loop(stop_event):
     finally:
         sock.close()
 
-async def start_server_with_fallback():
+async def server_main():
     global ACTIVE_PORT
-    last_error = None
+    ensure_certificate()
 
+    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
+    ssl_context.load_cert_chain(str(CERT_FILE), str(KEY_FILE))
+
+    server = None
+    last_error = None
     for port in range(PORT_START, PORT_END + 1):
         try:
             server = await serve(
                 websocket_handler,
                 "0.0.0.0",
                 port,
+                ssl=ssl_context,
                 ping_interval=10,
                 ping_timeout=10,
                 max_size=1024 * 1024,
                 compression=None,
             )
             ACTIVE_PORT = port
-            return server
+            break
         except OSError as exc:
             last_error = exc
 
-    raise OSError(f"No free port between {PORT_START} and {PORT_END}: {last_error}")
+    if server is None:
+        raise OSError(f"No free port between {PORT_START} and {PORT_END}: {last_error}")
 
-def print_banner():
-    code = current_pair_code()
-    ip = get_local_ip_for()
-
-    os.system("title WirelessKey Receiver 2.0")
-
-    print("")
-    print("====================================================")
-    print("              WirelessKey Receiver 2.0")
-    print("====================================================")
-    print(f"PC name        : {socket.gethostname()}")
-    print(f"PC IP          : {ip}")
-    print(f"WebSocket port : {ACTIVE_PORT}")
-    print(f"Pairing code   : {code}")
-    print("Code validity  : 30 minutes")
-    print("")
-    print("Android:")
-    print("  1. Open WirelessKey 2.0")
-    print("  2. Tap Find PC (recommended)")
-    print("  3. Select this computer")
-    print(f"  4. Enter pairing code {code}")
-    print("  5. Tap Connect")
-    print("")
-    print("Trusted phones reconnect automatically with a saved token.")
-    print("Keep this window open while using WirelessKey.")
-    print("Press Ctrl+C to stop.")
-    print("====================================================")
-    print("")
-
-async def main():
-    rotate_pair_code()
-    server = await start_server_with_fallback()
-
-    stop_event = threading.Event()
-    thread = threading.Thread(
-        target=discovery_loop,
-        args=(stop_event,),
-        daemon=True
-    )
-    thread.start()
-
-    print_banner()
+    threading.Thread(target=discovery_loop, daemon=True).start()
+    server_ready.set()
+    if ui:
+        ui.safe_refresh()
 
     try:
-        await asyncio.Future()
-    except asyncio.CancelledError:
-        pass
+        while not shutdown_event.is_set():
+            await asyncio.sleep(0.25)
     finally:
-        stop_event.set()
         server.close()
         await server.wait_closed()
 
-if __name__ == "__main__":
+def run_server():
     try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("\nWirelessKey Receiver stopped.")
+        asyncio.run(server_main())
     except Exception as exc:
-        print(f"\nReceiver failed: {exc}")
-        input("Press Enter to close...")
+        server_ready.set()
+        if ui:
+            ui.safe_error(str(exc))
+
+def create_tray_image():
+    img = Image.new("RGB", (64, 64), "#0b1220")
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle((7, 12, 57, 50), radius=8, fill="#1d4ed8")
+    for x in (14, 24, 34, 44):
+        d.rectangle((x, 20, x + 6, 26), fill="white")
+        d.rectangle((x, 32, x + 6, 38), fill="white")
+    d.rectangle((20, 42, 44, 46), fill="white")
+    return img
+
+class ReceiverUI:
+    def __init__(self):
+        import tkinter as tk
+        from tkinter import messagebox
+        self.tk = tk
+        self.messagebox = messagebox
+        self.root = tk.Tk()
+        self.root.title("WirelessKey Receiver 3.0")
+        self.root.geometry("440x430")
+        self.root.minsize(420, 400)
+        self.root.configure(bg="#0b1220")
+        self.root.protocol("WM_DELETE_WINDOW", self.hide)
+
+        self.code_var = tk.StringVar()
+        self.ip_var = tk.StringVar()
+        self.port_var = tk.StringVar()
+        self.device_var = tk.StringVar()
+        self.status_var = tk.StringVar()
+        self.fingerprint_var = tk.StringVar()
+
+        self._build()
+        self.safe_refresh()
+
+    def _label(self, parent, text, size=10, color="#94a3b8"):
+        return self.tk.Label(parent, text=text, font=("Segoe UI", size), fg=color, bg="#0b1220")
+
+    def _build(self):
+        tk = self.tk
+        title = tk.Label(
+            self.root,
+            text="WirelessKey 3.0",
+            font=("Segoe UI", 22, "bold"),
+            fg="white",
+            bg="#0b1220",
+        )
+        title.pack(pady=(20, 4))
+
+        sub = tk.Label(
+            self.root,
+            text="Encrypted local keyboard & precision touchpad receiver",
+            font=("Segoe UI", 9),
+            fg="#60a5fa",
+            bg="#0b1220",
+        )
+        sub.pack(pady=(0, 18))
+
+        card = tk.Frame(self.root, bg="#111827", padx=18, pady=14)
+        card.pack(fill="x", padx=20)
+
+        def row(label, var, big=False):
+            r = tk.Frame(card, bg="#111827")
+            r.pack(fill="x", pady=5)
+            tk.Label(r, text=label, width=15, anchor="w", fg="#94a3b8", bg="#111827", font=("Segoe UI", 9)).pack(side="left")
+            tk.Label(
+                r,
+                textvariable=var,
+                anchor="w",
+                fg="white",
+                bg="#111827",
+                font=("Consolas", 18 if big else 10, "bold" if big else "normal"),
+            ).pack(side="left", fill="x", expand=True)
+
+        row("Status", self.status_var)
+        row("PC name", tk.StringVar(value=socket.gethostname()))
+        row("PC IP", self.ip_var)
+        row("Secure port", self.port_var)
+        row("Pairing code", self.code_var, True)
+        row("Connected", self.device_var)
+
+        fp = tk.Label(
+            card,
+            textvariable=self.fingerprint_var,
+            anchor="w",
+            justify="left",
+            fg="#64748b",
+            bg="#111827",
+            font=("Consolas", 7),
+            wraplength=380,
+        )
+        fp.pack(fill="x", pady=(8, 0))
+
+        buttons = tk.Frame(self.root, bg="#0b1220")
+        buttons.pack(fill="x", padx=20, pady=16)
+
+        tk.Button(
+            buttons,
+            text="New Pairing Code",
+            command=lambda: rotate_pair_code("manual"),
+            bg="#1d4ed8",
+            fg="white",
+            activebackground="#2563eb",
+            activeforeground="white",
+            relief="flat",
+            padx=12,
+            pady=8,
+        ).pack(side="left", expand=True, fill="x", padx=(0, 5))
+
+        tk.Button(
+            buttons,
+            text="Revoke All Phones",
+            command=self.revoke_all,
+            bg="#7f1d1d",
+            fg="white",
+            activebackground="#991b1b",
+            activeforeground="white",
+            relief="flat",
+            padx=12,
+            pady=8,
+        ).pack(side="left", expand=True, fill="x", padx=(5, 0))
+
+        note = tk.Label(
+            self.root,
+            text="On Android: Find PC → select this PC → enter pairing code → Connect\n"
+                 "Traffic is encrypted and the receiver certificate is pinned on the phone.",
+            fg="#94a3b8",
+            bg="#0b1220",
+            justify="left",
+            font=("Segoe UI", 9),
+        )
+        note.pack(fill="x", padx=22, pady=(2, 8))
+
+        tk.Button(
+            self.root,
+            text="Hide to tray",
+            command=self.hide,
+            bg="#172033",
+            fg="#cbd5e1",
+            activebackground="#1f2937",
+            activeforeground="white",
+            relief="flat",
+            pady=6,
+        ).pack(fill="x", padx=20, pady=(4, 18))
+
+    def revoke_all(self):
+        if self.messagebox.askyesno("WirelessKey", "Revoke all trusted phones? They will need to pair again."):
+            trusted_devices.clear()
+            save_trusted()
+            self.safe_refresh()
+
+    def safe_refresh(self):
+        try:
+            self.root.after(0, self.refresh)
+        except Exception:
+            pass
+
+    def refresh(self):
+        ip = get_local_ip_for()
+        code = current_pair_code()
+        devices = list(connected_devices.values())
+        device_text = ", ".join(d["device"] for d in devices) if devices else "None"
+        status = "Running securely" if server_ready.is_set() else "Starting..."
+        self.ip_var.set(ip)
+        self.port_var.set(str(ACTIVE_PORT))
+        self.code_var.set(code)
+        self.device_var.set(device_text)
+        self.status_var.set(status)
+        self.fingerprint_var.set("Certificate SHA-256: " + (CERT_FINGERPRINT or "initializing..."))
+
+    def safe_error(self, message):
+        try:
+            self.root.after(0, lambda: self.messagebox.showerror("WirelessKey Receiver", message))
+        except Exception:
+            pass
+
+    def hide(self):
+        self.root.withdraw()
+
+    def show(self):
+        self.root.after(0, self.root.deiconify)
+        self.root.after(0, self.root.lift)
+
+    def run(self):
+        self.root.mainloop()
+
+def tray_show(icon, item):
+    if ui:
+        ui.show()
+
+def tray_new_code(icon, item):
+    rotate_pair_code("tray")
+
+def tray_exit(icon, item):
+    shutdown_event.set()
+    try:
+        icon.stop()
+    except Exception:
+        pass
+    if ui:
+        try:
+            ui.root.after(0, ui.root.destroy)
+        except Exception:
+            pass
+
+def start_tray():
+    global tray_icon
+    menu = pystray.Menu(
+        pystray.MenuItem("Show WirelessKey", tray_show, default=True),
+        pystray.MenuItem("New Pairing Code", tray_new_code),
+        pystray.MenuItem("Exit", tray_exit),
+    )
+    tray_icon = pystray.Icon("WirelessKey", create_tray_image(), "WirelessKey 3.0", menu)
+    tray_icon.run()
+
+def main():
+    global ui
+    ensure_certificate()
+    rotate_pair_code()
+
+    ui = ReceiverUI()
+    threading.Thread(target=run_server, daemon=True).start()
+    threading.Thread(target=start_tray, daemon=True).start()
+
+    ui.run()
+    shutdown_event.set()
+
+if __name__ == "__main__":
+    main()
