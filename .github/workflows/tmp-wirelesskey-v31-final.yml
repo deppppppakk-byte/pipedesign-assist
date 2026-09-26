@@ -54,8 +54,8 @@ jobs:
         run: |
           APK="app/build/outputs/apk/debug/app-debug.apk"
           test -f "$APK"
-          apksigner verify --verbose --print-certs "$APK"
-          aapt dump badging "$APK" | tee /tmp/badging.txt
+          "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_SDK_ROOT/build-tools/35.0.0/aapt" dump badging "$APK" | tee /tmp/badging.txt
           grep -q "versionName='3.1'" /tmp/badging.txt
           grep -q "application-label:'WirelessKey'" /tmp/badging.txt
           unzip -t "$APK"
