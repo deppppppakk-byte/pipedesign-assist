@@ -3,109 +3,128 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
-<meta name="theme-color" content="#0b1220"/>
-<title>WirelessKey</title>
+<meta name="theme-color" content="#08111f"/>
+<title>WirelessKey 2.0</title>
 <style>
 :root{
-  --bg:#0b1220;--panel:#111827;--panel2:#172033;--key:#202b3d;--key2:#28364b;
-  --line:#334155;--text:#f8fafc;--muted:#94a3b8;--accent:#60a5fa;--ok:#34d399;--bad:#f87171
+  --bg:#08111f;--panel:#0f1a2b;--panel2:#142238;--key:#1d2b40;--key2:#243650;
+  --line:#30435e;--text:#f8fafc;--muted:#90a2bb;--accent:#60a5fa;--ok:#34d399;
+  --warn:#fbbf24;--bad:#fb7185;--press:#3a526f
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden}
-button,input{font:inherit}
-.app{
-  height:100dvh;display:flex;flex-direction:column;gap:5px;
-  padding:max(4px,env(safe-area-inset-top)) 5px max(4px,env(safe-area-inset-bottom))
-}
-.topbar{
-  min-height:34px;display:flex;align-items:center;gap:5px;padding:3px 5px;
-  background:var(--panel);border:1px solid #1e293b;border-radius:9px
-}
-.brand{font-weight:800;font-size:13px;white-space:nowrap}.brand b{color:var(--accent)}
-.topbar input{
-  height:27px;background:#0f172a;border:1px solid var(--line);border-radius:7px;color:var(--text);
-  padding:0 7px;font-size:11px;outline:none
-}
-#host{width:155px}#code{width:68px;text-align:center;letter-spacing:1.5px}
-.connect{
-  height:27px;padding:0 10px;border:0;border-radius:7px;background:#1d4ed8;color:white;font-size:11px;font-weight:700
-}
-.status{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted);margin-left:auto;white-space:nowrap}
-.dot{width:7px;height:7px;border-radius:50%;background:#64748b}.status.ok .dot{background:var(--ok)}.status.bad .dot{background:var(--bad)}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);overflow:hidden;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+button,input,select{font:inherit}
+button{cursor:pointer}
+.app{height:100dvh;display:flex;flex-direction:column;gap:5px;padding:max(4px,env(safe-area-inset-top)) 5px max(4px,env(safe-area-inset-bottom))}
+.topbar{min-height:35px;display:flex;align-items:center;gap:5px;background:var(--panel);border:1px solid #1d2b40;border-radius:10px;padding:4px 5px}
+.brand{font-weight:850;font-size:13px;white-space:nowrap}.brand b{color:var(--accent)}
+.topbar input,.topbar select{height:27px;background:#091321;border:1px solid var(--line);border-radius:7px;color:var(--text);font-size:10px;outline:none;padding:0 7px}
+#host{width:136px}#code{width:62px;text-align:center;letter-spacing:1.4px}
+#devices{width:135px;display:none}
+.tbtn{height:27px;border:1px solid var(--line);border-radius:7px;background:#16263c;color:#dbeafe;font-size:10px;font-weight:700;padding:0 8px}
+.tbtn.primary{background:#1d4ed8;border-color:#2563eb;color:white}.tbtn.active{background:#164e63;border-color:#22d3ee}
+.status{margin-left:auto;display:flex;align-items:center;gap:5px;white-space:nowrap;font-size:9px;color:var(--muted)}
+.dot{width:7px;height:7px;border-radius:50%;background:#64748b;box-shadow:0 0 0 2px rgba(100,116,139,.12)}
+.status.ok .dot{background:var(--ok);box-shadow:0 0 0 2px rgba(52,211,153,.14)}
+.status.bad .dot{background:var(--bad)}.status.busy .dot{background:var(--warn)}
 
 .workspace{flex:1;min-height:0;display:flex;gap:5px}
-.keyboardPane{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
-.functionRow{height:9.5%;min-height:30px;display:flex;gap:3px}
+.keyboardPane{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;transition:.15s}
+.functionRow{height:9.5%;min-height:29px;display:flex;gap:3px}
 .keyboard{flex:1;min-height:0;display:flex;flex-direction:column;gap:4px}
 .row{display:flex;gap:3px;flex:1;min-height:0}
-.key{
-  position:relative;flex:1;min-width:0;border:1px solid #344257;border-radius:7px;background:linear-gradient(#273449,#202b3d);
-  color:var(--text);font-weight:650;font-size:clamp(10px,1.55vw,15px);box-shadow:inset 0 -2px rgba(0,0,0,.2);
-  touch-action:none;user-select:none;-webkit-user-select:none
-}
-.key:active,.key.pressed{background:#3b4d68;transform:translateY(1px)}
-.key.mod.active,.key.shift.active,.key.caps.active{background:#17365d;border-color:#60a5fa;box-shadow:inset 0 0 0 1px #60a5fa}
-.key .main{display:block;line-height:1}
-.key .sub{position:absolute;top:3px;left:5px;font-size:8px;color:#9fb0c8;font-weight:500}
-.key .main.withSub{padding-top:8px}
+.key{position:relative;flex:1;min-width:0;border:1px solid #324762;border-radius:7px;background:linear-gradient(#243650,#1b293d);color:var(--text);font-weight:680;font-size:clamp(10px,1.5vw,15px);box-shadow:inset 0 -2px rgba(0,0,0,.22);touch-action:none;user-select:none;-webkit-user-select:none}
+.key:active,.key.pressed{background:var(--press);transform:translateY(1px)}
+.key.mod.active,.key.shift.active,.key.caps.active{background:#16365b;border-color:#60a5fa;box-shadow:inset 0 0 0 1px #60a5fa}
+.key .main{display:block;line-height:1}.key .sub{position:absolute;top:3px;left:5px;font-size:8px;color:#a9bad0;font-weight:500}.key .main.withSub{padding-top:8px}
 .key.w125{flex:1.25}.key.w14{flex:1.4}.key.w15{flex:1.5}.key.w17{flex:1.7}.key.w19{flex:1.9}.key.w22{flex:2.2}.key.w55{flex:5.5}
-.key.fn{font-size:9px;background:linear-gradient(#202b3d,#182234)}
-.key.arrow{font-size:15px}
-.mousePane{
-  width:27%;min-width:155px;max-width:310px;display:flex;flex-direction:column;gap:4px
-}
-.touchpad{
-  flex:1;min-height:0;position:relative;border:1px solid #36445a;border-radius:12px;
-  background:
-    radial-gradient(circle at 35% 25%,rgba(96,165,250,.06),transparent 38%),
-    linear-gradient(145deg,#1a2536,#101827);
-  touch-action:none;overflow:hidden
-}
-.touchpad .label{position:absolute;inset:0;display:grid;place-items:center;color:#607088;font-size:11px;pointer-events:none}
-.touchpad .hint{position:absolute;bottom:6px;left:0;right:0;text-align:center;color:#526078;font-size:8px;pointer-events:none}
-.mouseBtns{height:34px;display:flex;gap:4px}
-.mouseBtns button{
-  flex:1;border:1px solid #344257;border-radius:8px;background:var(--key2);color:var(--text);font-size:10px;font-weight:700
-}
-.scrollBar{
-  width:22px;border-left:1px solid rgba(148,163,184,.16);position:absolute;right:0;top:0;bottom:0;
-  display:flex;align-items:center;justify-content:center;color:#53657d;font-size:9px;writing-mode:vertical-rl;pointer-events:none
-}
+.key.fn{font-size:9px;background:linear-gradient(#1c2b40,#152237)}.key.arrow{font-size:15px}
+
+.side{width:28%;min-width:165px;max-width:330px;display:flex;flex-direction:column;gap:4px;transition:.15s}
+.sideTabs{height:28px;display:grid;grid-template-columns:repeat(5,1fr);gap:3px}
+.sideTabs button{border:1px solid var(--line);background:#132136;color:#afc0d7;border-radius:7px;font-size:8px;font-weight:750}
+.sideTabs button.active{background:#1d4ed8;color:#fff;border-color:#3b82f6}
+.sidePanel{flex:1;min-height:0;display:none}.sidePanel.active{display:flex;flex-direction:column;gap:4px}
+
+.touchpad{flex:1;min-height:0;position:relative;border:1px solid #364b68;border-radius:13px;background:radial-gradient(circle at 34% 22%,rgba(96,165,250,.08),transparent 38%),linear-gradient(145deg,#19283d,#0d1726);touch-action:none;overflow:hidden}
+.touchpad .label{position:absolute;inset:0;display:grid;place-items:center;color:#657994;font-size:11px;pointer-events:none}
+.touchpad .hint{position:absolute;bottom:7px;left:0;right:0;text-align:center;color:#536985;font-size:8px;pointer-events:none}
+.touchpad .scrollzone{position:absolute;right:0;top:0;bottom:0;width:25px;border-left:1px solid rgba(148,163,184,.15);display:grid;place-items:center;color:#526780;font-size:8px;writing-mode:vertical-rl;pointer-events:none}
+.mouseBtns{height:34px;display:grid;grid-template-columns:1fr 1fr 46px;gap:4px}
+.mouseBtns button,.gridBtn{border:1px solid #354a65;border-radius:8px;background:var(--key2);color:var(--text);font-size:9px;font-weight:750}
+.mouseBtns .expand{font-size:13px}
+
+.numpad{flex:1;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(5,1fr);gap:4px;min-height:0}
+.numpad .wide{grid-column:span 2}.numpad .tall{grid-row:span 2}
+
+.mediaGrid,.shortGrid{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;min-height:0}
+.mediaGrid button,.shortGrid button{border:1px solid #354a65;border-radius:9px;background:linear-gradient(#263a55,#1b2c43);color:#eef6ff;font-size:10px;font-weight:750}
+.mediaGrid button:active,.shortGrid button:active,.gridBtn:active{background:#3c5575}
+.shortGrid{grid-template-columns:repeat(2,1fr)}
+
+.padOnly .keyboardPane{display:none}.padOnly .side{width:100%;max-width:none}.padOnly .touchpad .label{font-size:18px}.padOnly .touchpad .hint{font-size:11px}
+.padOnly .sideTabs{grid-template-columns:repeat(5,minmax(60px,110px));justify-content:center}
+
 @media(max-height:520px){
-  .topbar{min-height:28px}.topbar input,.connect{height:23px}.functionRow{min-height:26px}
-  .row,.keyboard,.keyboardPane{gap:2px}.key{border-radius:5px;font-size:10px}.key.fn{font-size:8px}
+ .topbar{min-height:29px}.topbar input,.topbar select,.tbtn{height:23px}.functionRow{min-height:25px}
+ .row,.keyboard,.keyboardPane{gap:2px}.key{border-radius:5px;font-size:10px}.key.fn{font-size:8px}
+ .sideTabs{height:23px}.mouseBtns{height:29px}
 }
-@media(orientation:portrait){
-  .workspace{flex-direction:column}.mousePane{width:100%;max-width:none;height:24%}.touchpad{min-height:90px}
-  #host{width:120px}
-}
+@media(max-width:740px){.brand{display:none}#host{width:112px}#devices{width:110px}.side{width:31%;min-width:150px}}
+@media(orientation:portrait){.workspace{flex-direction:column}.side{width:100%;max-width:none;height:28%}.keyboardPane{height:72%}.topbar{flex-wrap:wrap}.status{margin-left:0}}
 </style>
 </head>
 <body>
-<div class="app">
+<div class="app" id="app">
   <div class="topbar">
-    <div class="brand">Wireless<b>Key</b></div>
-    <input id="host" placeholder="Laptop IP"/>
-    <input id="code" placeholder="Code" maxlength="6" inputmode="numeric"/>
-    <button class="connect" id="connectBtn">Connect</button>
-    <div class="status" id="status"><span class="dot"></span><span id="statusText">Not connected</span></div>
+    <div class="brand">Wireless<b>Key 2.0</b></div>
+    <select id="devices"><option value="">Discovered PCs</option></select>
+    <button class="tbtn" id="findBtn">Find PC</button>
+    <input id="host" placeholder="PC IP"/>
+    <input id="code" placeholder="6-digit" maxlength="6" inputmode="numeric"/>
+    <button class="tbtn primary" id="connectBtn">Connect</button>
+    <button class="tbtn active" id="hapticBtn">Haptic</button>
+    <div class="status" id="status"><span class="dot"></span><span id="statusText">Offline</span></div>
   </div>
 
-  <div class="workspace">
+  <div class="workspace" id="workspace">
     <div class="keyboardPane">
       <div class="functionRow" id="functionRow"></div>
       <div class="keyboard" id="keyboard"></div>
     </div>
 
-    <div class="mousePane">
-      <div class="touchpad" id="pad">
-        <div class="label">Touchpad</div>
-        <div class="hint">Tap click · Hold drag · 2-finger scroll</div>
-        <div class="scrollBar">SCROLL</div>
+    <div class="side">
+      <div class="sideTabs">
+        <button class="active" data-panel="mousePanel">Mouse</button>
+        <button data-panel="numPanel">Num</button>
+        <button data-panel="mediaPanel">Media</button>
+        <button data-panel="shortPanel">Shortcuts</button>
+        <button id="fullPadBtn">⛶</button>
       </div>
-      <div class="mouseBtns">
-        <button data-mouse="left">Left Click</button>
-        <button data-mouse="right">Right Click</button>
+
+      <div class="sidePanel active" id="mousePanel">
+        <div class="touchpad" id="pad">
+          <div class="label">Precision Touchpad</div>
+          <div class="hint">Tap click · Double-tap · Hold drag · 2-finger scroll</div>
+          <div class="scrollzone">SCROLL</div>
+        </div>
+        <div class="mouseBtns">
+          <button data-mouse="left">Left</button>
+          <button data-mouse="right">Right</button>
+          <button class="expand" id="expandPad">⛶</button>
+        </div>
+      </div>
+
+      <div class="sidePanel" id="numPanel">
+        <div class="numpad" id="numpad"></div>
+      </div>
+
+      <div class="sidePanel" id="mediaPanel">
+        <div class="mediaGrid" id="mediaGrid"></div>
+      </div>
+
+      <div class="sidePanel" id="shortPanel">
+        <div class="shortGrid" id="shortGrid"></div>
       </div>
     </div>
   </div>
@@ -114,322 +133,286 @@ button,input{font:inherit}
 <script>
 const hostEl=document.getElementById('host');
 const codeEl=document.getElementById('code');
+const devicesEl=document.getElementById('devices');
 const statusEl=document.getElementById('status');
 const statusText=document.getElementById('statusText');
+const hapticBtn=document.getElementById('hapticBtn');
+const app=document.getElementById('app');
+
+let connected=false;
+let haptics=true;
 
 try{
-  hostEl.value=Android.loadHost()||'';
+  hostEl.value=(Android.loadHost()||'').replace(/:8765$/,'');
   codeEl.value=Android.loadCode()||'';
+  haptics=Android.loadHaptics();
 }catch(e){}
+hapticBtn.classList.toggle('active',haptics);
 
-function save(){
-  try{Android.saveSettings(hostEl.value,codeEl.value)}catch(e){}
-}
+function haptic(){if(haptics){try{Android.haptic()}catch(e){}}}
+function save(){try{Android.saveSettings(hostEl.value,codeEl.value)}catch(e){}}
+
 hostEl.addEventListener('change',save);
-codeEl.addEventListener('input',()=>{
-  codeEl.value=codeEl.value.replace(/\D/g,'').slice(0,6);
-  save();
-});
-document.getElementById('connectBtn').addEventListener('click',()=>{
-  save();setStatus('checking','Checking...');
-  try{Android.testConnection(hostEl.value)}catch(e){setStatus('error','Bridge error')}
-});
+codeEl.addEventListener('input',()=>{codeEl.value=codeEl.value.replace(/\D/g,'').slice(0,6);save()});
+hapticBtn.addEventListener('click',()=>{haptics=!haptics;hapticBtn.classList.toggle('active',haptics);try{Android.setHaptics(haptics)}catch(e){}});
 
 function setStatus(kind,text){
   statusText.textContent=text;
-  statusEl.className='status'+((kind==='ready'||kind==='connected')?' ok':kind==='error'?' bad':'');
+  statusEl.className='status'+((kind==='connected'||kind==='ready')?' ok':(kind==='error')?' bad':(kind==='connecting'||kind==='authenticating'||kind==='reconnecting'||kind==='discovering')?' busy':'');
+  connected=(kind==='connected'||kind==='ready');
+  document.getElementById('connectBtn').textContent=connected?'Reconnect':'Connect';
 }
 window.onNativeStatus=(kind,detail)=>setStatus(kind,detail||kind);
 
-function send(event){
-  if(!hostEl.value.trim()){setStatus('error','Enter laptop IP');return}
-  if(codeEl.value.trim().length!==6){setStatus('error','Enter 6-digit code');return}
+document.getElementById('connectBtn').addEventListener('click',()=>{
   save();
-  try{Android.sendEvent(hostEl.value,codeEl.value,JSON.stringify(event))}
-  catch(e){setStatus('error','Send failed')}
+  if(!hostEl.value.trim()){setStatus('error','Find or enter PC');return}
+  if(codeEl.value.trim().length!==6){setStatus('error','Enter 6-digit code');return}
+  setStatus('connecting','Connecting...');
+  try{Android.connect(hostEl.value,codeEl.value)}catch(e){setStatus('error','Connection unavailable')}
+});
+
+document.getElementById('findBtn').addEventListener('click',()=>{
+  devicesEl.innerHTML='<option value="">Searching...</option>';
+  devicesEl.style.display='block';
+  setStatus('discovering','Finding PCs...');
+  try{Android.discover()}catch(e){setStatus('error','Discovery unavailable')}
+});
+window.onDiscoveryStart=()=>setStatus('discovering','Finding PCs...');
+window.onDiscoveryResult=(d)=>{
+  const value=d.ip+(d.port&&d.port!==8765?':'+d.port:'');
+  if([...devicesEl.options].some(o=>o.value===value))return;
+  const opt=document.createElement('option');
+  opt.value=value;
+  opt.textContent=(d.name||d.pcName||'WirelessKey PC')+' · '+d.ip;
+  devicesEl.appendChild(opt);
+  devicesEl.style.display='block';
+};
+window.onDiscoveryDone=()=>{
+  const real=[...devicesEl.options].filter(o=>o.value);
+  if(real.length===0){
+    devicesEl.innerHTML='<option value="">No PC found</option>';
+    setStatus('offline','Enter PC IP manually');
+  }else{
+    devicesEl.options[0].textContent='Choose PC ('+real.length+')';
+    setStatus('offline','PC found · select it');
+  }
+};
+devicesEl.addEventListener('change',()=>{
+  if(devicesEl.value){
+    hostEl.value=devicesEl.value;
+    save();
+  }
+});
+
+function send(event){
+  try{Android.sendEvent(JSON.stringify(event))}catch(e){}
 }
+function sendKey(key,mods=[]){send({type:'key',key,modifiers:mods})}
+function sendText(text){send({type:'text',text})}
 
-const specialNames=new Set([
-  'ESC','BACKSPACE','TAB','CAPSLOCK','ENTER','SHIFT','CTRL','ALT','WIN','MENU',
-  'HOME','END','PAGEUP','PAGEDOWN','DELETE','INSERT','LEFT','RIGHT','UP','DOWN',
-  'F1','F2','F3','F4','F5','F6','F7','F8','F9','F10','F11','F12',
-  'VOLUME_DOWN','VOLUME_UP','VOLUME_MUTE','MEDIA_PREV','MEDIA_PLAY','MEDIA_NEXT'
-]);
+// Right-side modes
+document.querySelectorAll('.sideTabs button[data-panel]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    haptic();
+    document.querySelectorAll('.sideTabs button[data-panel]').forEach(b=>b.classList.toggle('active',b===btn));
+    document.querySelectorAll('.sidePanel').forEach(p=>p.classList.toggle('active',p.id===btn.dataset.panel));
+  });
+});
+function toggleFullPad(){
+  const on=!app.classList.contains('padOnly');
+  app.classList.toggle('padOnly',on);
+  if(on){
+    document.querySelectorAll('.sideTabs button[data-panel]').forEach(b=>b.classList.toggle('active',b.dataset.panel==='mousePanel'));
+    document.querySelectorAll('.sidePanel').forEach(p=>p.classList.toggle('active',p.id==='mousePanel'));
+  }
+}
+document.getElementById('fullPadBtn').addEventListener('click',toggleFullPad);
+document.getElementById('expandPad').addEventListener('click',toggleFullPad);
 
+// Keyboard
 const fnKeys=[
-  {key:'ESC',label:'Esc',cls:'w125'}, {key:'F1',label:'F1'}, {key:'F2',label:'F2'}, {key:'F3',label:'F3'},
-  {key:'F4',label:'F4'}, {key:'F5',label:'F5'}, {key:'F6',label:'F6'}, {key:'F7',label:'F7'},
-  {key:'F8',label:'F8'}, {key:'F9',label:'F9'}, {key:'F10',label:'F10'}, {key:'F11',label:'F11'}, {key:'F12',label:'F12'},
-  {key:'DELETE',label:'Del',cls:'w125'}
+ {key:'ESC',label:'Esc',cls:'w125'}, {key:'F1',label:'F1'}, {key:'F2',label:'F2'}, {key:'F3',label:'F3'},
+ {key:'F4',label:'F4'}, {key:'F5',label:'F5'}, {key:'F6',label:'F6'}, {key:'F7',label:'F7'},
+ {key:'F8',label:'F8'}, {key:'F9',label:'F9'}, {key:'F10',label:'F10'}, {key:'F11',label:'F11'}, {key:'F12',label:'F12'},
+ {key:'INSERT',label:'Ins'}, {key:'DELETE',label:'Del'}
 ];
-
 const rows=[
-  [
-    {normal:'`',shift:'~',sub:'~'},{normal:'1',shift:'!',sub:'!'},{normal:'2',shift:'@',sub:'@'},
-    {normal:'3',shift:'#',sub:'#'},{normal:'4',shift:'$',sub:'$'},{normal:'5',shift:'%',sub:'%'},
-    {normal:'6',shift:'^',sub:'^'},{normal:'7',shift:'&',sub:'&'},{normal:'8',shift:'*',sub:'*'},
-    {normal:'9',shift:'(',sub:'('},{normal:'0',shift:')',sub:')'},{normal:'-',shift:'_',sub:'_'},
-    {normal:'=',shift:'+',sub:'+'},{key:'BACKSPACE',label:'Backspace',cls:'w19'}
-  ],
-  [
-    {key:'TAB',label:'Tab',cls:'w15'},
-    ...'qwertyuiop'.split('').map(c=>({normal:c})),
-    {normal:'[',shift:'{',sub:'{'},{normal:']',shift:'}',sub:'}'},{normal:'\\',shift:'|',sub:'|',cls:'w15'}
-  ],
-  [
-    {key:'CAPSLOCK',label:'Caps Lock',cls:'w17',type:'caps'},
-    ...'asdfghjkl'.split('').map(c=>({normal:c})),
-    {normal:';',shift:':',sub:':'},{normal:"'",shift:'"',sub:'"'},
-    {key:'ENTER',label:'Enter',cls:'w22'}
-  ],
-  [
-    {key:'SHIFT',label:'Shift',cls:'w22',type:'shift'},
-    ...'zxcvbnm'.split('').map(c=>({normal:c})),
-    {normal:',',shift:'<',sub:'<'},{normal:'.',shift:'>',sub:'>'},{normal:'/',shift:'?',sub:'?'},
-    {key:'SHIFT',label:'Shift',cls:'w22',type:'shift'}
-  ],
-  [
-    {key:'CTRL',label:'Ctrl',cls:'w14',type:'mod'},
-    {key:'WIN',label:'Win',cls:'w125',type:'mod'},
-    {key:'ALT',label:'Alt',cls:'w125',type:'mod'},
-    {key:'SPACE',label:'Space',cls:'w55'},
-    {key:'ALT',label:'Alt',cls:'w125',type:'mod'},
-    {key:'MENU',label:'Menu',cls:'w125'},
-    {key:'CTRL',label:'Ctrl',cls:'w14',type:'mod'},
-    {key:'LEFT',label:'←',cls:'arrow'},{key:'UP',label:'↑',cls:'arrow'},
-    {key:'DOWN',label:'↓',cls:'arrow'},{key:'RIGHT',label:'→',cls:'arrow'}
-  ]
+ [
+  {normal:'`',shift:'~',sub:'~'},{normal:'1',shift:'!',sub:'!'},{normal:'2',shift:'@',sub:'@'},
+  {normal:'3',shift:'#',sub:'#'},{normal:'4',shift:'$',sub:'$'},{normal:'5',shift:'%',sub:'%'},
+  {normal:'6',shift:'^',sub:'^'},{normal:'7',shift:'&',sub:'&'},{normal:'8',shift:'*',sub:'*'},
+  {normal:'9',shift:'(',sub:'('},{normal:'0',shift:')',sub:')'},{normal:'-',shift:'_',sub:'_'},
+  {normal:'=',shift:'+',sub:'+'},{key:'BACKSPACE',label:'Backspace',cls:'w19'}
+ ],
+ [
+  {key:'TAB',label:'Tab',cls:'w15'},...'qwertyuiop'.split('').map(c=>({normal:c})),
+  {normal:'[',shift:'{',sub:'{'},{normal:']',shift:'}',sub:'}'},{normal:'\\',shift:'|',sub:'|',cls:'w15'}
+ ],
+ [
+  {key:'CAPSLOCK',label:'Caps Lock',cls:'w17',type:'caps'},...'asdfghjkl'.split('').map(c=>({normal:c})),
+  {normal:';',shift:':',sub:':'},{normal:"'",shift:'"',sub:'"'},{key:'ENTER',label:'Enter',cls:'w22'}
+ ],
+ [
+  {key:'SHIFT',label:'Shift',cls:'w22',type:'shift'},...'zxcvbnm'.split('').map(c=>({normal:c})),
+  {normal:',',shift:'<',sub:'<'},{normal:'.',shift:'>',sub:'>'},{normal:'/',shift:'?',sub:'?'},
+  {key:'SHIFT',label:'Shift',cls:'w22',type:'shift'}
+ ],
+ [
+  {key:'CTRL',label:'Ctrl',cls:'w14',type:'mod'},{key:'WIN',label:'Win',cls:'w125',type:'mod'},
+  {key:'ALT',label:'Alt',cls:'w125',type:'mod'},{key:'SPACE',label:'Space',cls:'w55'},
+  {key:'ALT',label:'Alt',cls:'w125',type:'mod'},{key:'MENU',label:'Menu',cls:'w125'},
+  {key:'CTRL',label:'Ctrl',cls:'w14',type:'mod'},
+  {key:'LEFT',label:'←',cls:'arrow'},{key:'UP',label:'↑',cls:'arrow'},{key:'DOWN',label:'↓',cls:'arrow'},{key:'RIGHT',label:'→',cls:'arrow'}
+ ]
 ];
 
-let shiftOn=false;
-let capsOn=false;
+let shiftOn=false,capsOn=false;
 const activeMods=new Set();
 
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function printableValue(spec){
-  const base=spec.normal||'';
-  if(/[a-z]/.test(base)){
-    const upper=(capsOn!==shiftOn);
-    return upper?base.toUpperCase():base.toLowerCase();
-  }
-  return shiftOn && spec.shift!==undefined ? spec.shift : base;
+ const base=spec.normal||'';
+ if(/[a-z]/.test(base))return (capsOn!==shiftOn)?base.toUpperCase():base.toLowerCase();
+ return shiftOn&&spec.shift!==undefined?spec.shift:base;
 }
-
 function makeKey(spec,isFn=false){
-  const b=document.createElement('button');
-  let classes='key';
-  if(isFn)classes+=' fn';
-  if(spec.cls)classes+=' '+spec.cls;
-  if(spec.type==='mod')classes+=' mod';
-  if(spec.type==='shift')classes+=' shift';
-  if(spec.type==='caps')classes+=' caps';
-  if(spec.cls==='arrow')classes+=' arrow';
-  b.className=classes;
+ const b=document.createElement('button');
+ b.className='key'+(isFn?' fn':'')+(spec.cls?' '+spec.cls:'')+(spec.type?' '+spec.type:'');
+ if(spec.key)b.dataset.key=spec.key;
+ if(spec.normal!==undefined){b.dataset.normal=spec.normal;if(spec.shift!==undefined)b.dataset.shift=spec.shift}
+ const label=spec.label||(spec.normal!==undefined?String(spec.normal).toUpperCase():spec.key||'');
+ b.innerHTML=spec.sub!==undefined?'<span class="sub">'+esc(spec.sub)+'</span><span class="main withSub">'+esc(label)+'</span>':'<span class="main">'+esc(label)+'</span>';
 
-  if(spec.key)b.dataset.key=spec.key;
-  if(spec.normal!==undefined){
-    b.dataset.normal=spec.normal;
-    if(spec.shift!==undefined)b.dataset.shift=spec.shift;
-  }
-
-  if(spec.sub!==undefined){
-    b.innerHTML='<span class="sub">'+escapeHtml(spec.sub)+'</span><span class="main withSub">'+escapeHtml(displayMain(spec))+'</span>';
-  }else{
-    b.innerHTML='<span class="main">'+escapeHtml(spec.label||displayMain(spec))+'</span>';
-  }
-
-  let repeatTimer=null,repeatInterval=null;
-  const fire=()=>handleKey(spec,b);
-
-  b.addEventListener('pointerdown',e=>{
-    e.preventDefault();
-    b.classList.add('pressed');
-    fire();
-    const repeatable=['BACKSPACE','LEFT','RIGHT','UP','DOWN','DELETE'].includes(spec.key);
-    if(repeatable){
-      repeatTimer=setTimeout(()=>{
-        repeatInterval=setInterval(()=>handleKey(spec,b,true),70);
-      },430);
-    }
-  });
-  const stop=()=>{
-    b.classList.remove('pressed');
-    clearTimeout(repeatTimer);clearInterval(repeatInterval)
-  };
-  b.addEventListener('pointerup',stop);
-  b.addEventListener('pointercancel',stop);
-  b.addEventListener('pointerleave',stop);
-  return b;
+ let repeatTimer=null,repeatLoop=null;
+ const fire=(rep=false)=>handleKey(spec,rep);
+ b.addEventListener('pointerdown',e=>{
+   e.preventDefault();haptic();b.classList.add('pressed');fire(false);
+   if(['BACKSPACE','DELETE','LEFT','RIGHT','UP','DOWN'].includes(spec.key)){
+     repeatTimer=setTimeout(()=>{repeatLoop=setInterval(()=>fire(true),58)},400);
+   }
+ });
+ const stop=()=>{b.classList.remove('pressed');clearTimeout(repeatTimer);clearInterval(repeatLoop)};
+ b.addEventListener('pointerup',stop);b.addEventListener('pointercancel',stop);b.addEventListener('pointerleave',stop);
+ return b;
 }
-
-function displayMain(spec){
-  if(spec.label)return spec.label;
-  if(spec.normal===' ')return 'Space';
-  return spec.normal!==undefined?String(spec.normal).toUpperCase():(spec.key||'');
+function updateLabels(){
+ document.querySelectorAll('.key[data-normal]').forEach(b=>{
+   const n=b.dataset.normal,s=b.dataset.shift;
+   let v=/[a-z]/.test(n)?((capsOn!==shiftOn)?n.toUpperCase():n.toLowerCase()):(shiftOn&&s!==undefined?s:n);
+   const m=b.querySelector('.main');if(m)m.textContent=v.toUpperCase();
+ });
+ document.querySelectorAll('.key.shift').forEach(b=>b.classList.toggle('active',shiftOn));
+ document.querySelectorAll('.key.caps').forEach(b=>b.classList.toggle('active',capsOn));
+ document.querySelectorAll('.key.mod').forEach(b=>b.classList.toggle('active',activeMods.has(b.dataset.key)));
 }
-function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))
+function handleKey(spec,repeat){
+ if(spec.type==='shift'){shiftOn=!shiftOn;updateLabels();return}
+ if(spec.type==='caps'){capsOn=!capsOn;sendKey('CAPSLOCK');updateLabels();return}
+ if(spec.type==='mod'){
+   activeMods.has(spec.key)?activeMods.delete(spec.key):activeMods.add(spec.key);updateLabels();return;
+ }
+ const mods=[...activeMods];
+ if(shiftOn&&spec.normal===undefined&&spec.key!=='SPACE')mods.push('SHIFT');
+ if(spec.normal!==undefined){
+   const v=printableValue(spec);
+   activeMods.size?sendKey(v,mods):sendText(v);
+ }else if(spec.key==='SPACE'){
+   activeMods.size?sendKey('SPACE',mods):sendText(' ');
+ }else sendKey(spec.key,mods);
+
+ if(!repeat){
+   shiftOn=false;
+   ['CTRL','ALT','WIN'].forEach(m=>activeMods.delete(m));
+   updateLabels();
+ }
 }
+const fr=document.getElementById('functionRow');fnKeys.forEach(k=>fr.appendChild(makeKey(k,true)));
+const kb=document.getElementById('keyboard');
+rows.forEach(rr=>{const row=document.createElement('div');row.className='row';rr.forEach(k=>row.appendChild(makeKey(k)));kb.appendChild(row)});
+updateLabels();
 
-function renderLabels(){
-  document.querySelectorAll('.key[data-normal]').forEach(b=>{
-    const normal=b.dataset.normal;
-    const shift=b.dataset.shift;
-    let value;
-    if(/[a-z]/.test(normal)){
-      value=(capsOn!==shiftOn)?normal.toUpperCase():normal.toLowerCase();
-    }else{
-      value=shiftOn&&shift!==undefined?shift:normal;
-    }
-    const main=b.querySelector('.main');
-    if(main)main.textContent=value===' '?'Space':value.toUpperCase();
-  });
-}
-
-function syncModifierVisuals(){
-  document.querySelectorAll('.key.shift').forEach(b=>b.classList.toggle('active',shiftOn));
-  document.querySelectorAll('.key.caps').forEach(b=>b.classList.toggle('active',capsOn));
-  document.querySelectorAll('.key.mod').forEach(b=>{
-    const k=b.dataset.key;
-    b.classList.toggle('active',activeMods.has(k));
-  });
-  renderLabels();
-}
-
-function handleKey(spec,b,repeat=false){
-  if(spec.type==='shift'){
-    shiftOn=!shiftOn;syncModifierVisuals();return;
-  }
-  if(spec.type==='caps'){
-    capsOn=!capsOn;
-    send({type:'key',key:'CAPSLOCK',modifiers:[]});
-    syncModifierVisuals();return;
-  }
-  if(spec.type==='mod'){
-    const k=spec.key;
-    if(activeMods.has(k))activeMods.delete(k);else activeMods.add(k);
-    syncModifierVisuals();return;
-  }
-
-  const mods=[...activeMods];
-  if(shiftOn && spec.normal===undefined && spec.key!=='SPACE')mods.push('SHIFT');
-
-  if(spec.normal!==undefined){
-    const value=printableValue(spec);
-    if(activeMods.size>0){
-      send({type:'key',key:value,modifiers:mods});
-    }else{
-      send({type:'text',text:value});
-    }
-  }else if(spec.key==='SPACE'){
-    if(activeMods.size>0)send({type:'key',key:'SPACE',modifiers:mods});
-    else send({type:'text',text:' '});
-  }else{
-    send({type:'key',key:spec.key,modifiers:mods});
-  }
-
-  if(!repeat){
-    if(shiftOn){shiftOn=false}
-    for(const m of ['CTRL','ALT','WIN'])activeMods.delete(m);
-    syncModifierVisuals();
-  }
-}
-
-const fnRow=document.getElementById('functionRow');
-fnKeys.forEach(k=>fnRow.appendChild(makeKey(k,true)));
-
-const keyboard=document.getElementById('keyboard');
-rows.forEach(rowSpec=>{
-  const row=document.createElement('div');
-  row.className='row';
-  rowSpec.forEach(k=>row.appendChild(makeKey(k,false)));
-  keyboard.appendChild(row);
-});
-syncModifierVisuals();
-
-// Touchpad
+// Precision touchpad with 60Hz batching
 const pad=document.getElementById('pad');
-let primary=null,start=null,moved=false,dragging=false;
-let holdTimer=null;
-let touchPoints=new Map();
-let lastTwoY=null;
-const sensitivity=1.65;
-
-function mouseSend(event){send(event)}
-
-pad.addEventListener('pointerdown',e=>{
-  e.preventDefault();
-  pad.setPointerCapture(e.pointerId);
-  touchPoints.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(touchPoints.size===1){
-    primary={id:e.pointerId,x:e.clientX,y:e.clientY};
-    start={x:e.clientX,y:e.clientY};
-    moved=false;dragging=false;
-    clearTimeout(holdTimer);
-    holdTimer=setTimeout(()=>{
-      if(!moved&&touchPoints.size===1){
-        dragging=true;
-        mouseSend({type:'mouse',button:'left',action:'down'});
-      }
-    },480);
-  }else if(touchPoints.size===2){
-    clearTimeout(holdTimer);
-    const pts=[...touchPoints.values()];
-    lastTwoY=(pts[0].y+pts[1].y)/2;
-  }
-});
-
-pad.addEventListener('pointermove',e=>{
-  if(!touchPoints.has(e.pointerId))return;
-  const old=touchPoints.get(e.pointerId);
-  const current={x:e.clientX,y:e.clientY};
-  touchPoints.set(e.pointerId,current);
-
-  if(touchPoints.size===2){
-    clearTimeout(holdTimer);
-    const pts=[...touchPoints.values()];
-    const y=(pts[0].y+pts[1].y)/2;
-    if(lastTwoY!==null){
-      const dy=y-lastTwoY;
-      if(Math.abs(dy)>2){
-        mouseSend({type:'wheel',delta:dy>0?-120:120});
-        lastTwoY=y;
-      }
-    }
-    return;
-  }
-
-  if(primary && primary.id===e.pointerId){
-    const dx=(current.x-old.x)*sensitivity;
-    const dy=(current.y-old.y)*sensitivity;
-    if(start && Math.abs(current.x-start.x)+Math.abs(current.y-start.y)>5){
-      moved=true;clearTimeout(holdTimer)
-    }
-    if(Math.abs(dx)+Math.abs(dy)>0.4)mouseSend({type:'move',dx,dy});
-  }
-});
-
-function finishPointer(e){
-  clearTimeout(holdTimer);
-  touchPoints.delete(e.pointerId);
-  if(primary&&primary.id===e.pointerId){
-    if(dragging){
-      mouseSend({type:'mouse',button:'left',action:'up'});
-    }else if(!moved){
-      mouseSend({type:'mouse',button:'left',action:'click'});
-    }
-    primary=null;start=null;moved=false;dragging=false;
-  }
-  if(touchPoints.size<2)lastTwoY=null;
+let pointers=new Map(),primaryId=null,start=null,lastTap=0,dragging=false,moved=false,holdTimer=null,lastTwoY=null;
+let pendingDX=0,pendingDY=0,pendingWheel=0,rafScheduled=false;
+const sensitivity=1.55;
+function flushPointer(){
+ rafScheduled=false;
+ if(Math.abs(pendingDX)+Math.abs(pendingDY)>0.15){send({type:'move',dx:pendingDX,dy:pendingDY});pendingDX=0;pendingDY=0}
+ if(Math.abs(pendingWheel)>=1){send({type:'wheel',delta:pendingWheel});pendingWheel=0}
 }
-pad.addEventListener('pointerup',finishPointer);
-pad.addEventListener('pointercancel',finishPointer);
-
-document.querySelectorAll('[data-mouse]').forEach(b=>{
-  b.addEventListener('pointerdown',e=>{
-    e.preventDefault();
-    mouseSend({type:'mouse',button:b.dataset.mouse,action:'click'});
-  });
+function scheduleFlush(){if(!rafScheduled){rafScheduled=true;requestAnimationFrame(flushPointer)}}
+pad.addEventListener('pointerdown',e=>{
+ e.preventDefault();haptic();pad.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+ if(pointers.size===1){
+   primaryId=e.pointerId;start={x:e.clientX,y:e.clientY};moved=false;dragging=false;
+   clearTimeout(holdTimer);holdTimer=setTimeout(()=>{if(!moved&&pointers.size===1){dragging=true;send({type:'mouse',button:'left',action:'down'})}},480);
+ }else if(pointers.size===2){
+   clearTimeout(holdTimer);const ps=[...pointers.values()];lastTwoY=(ps[0].y+ps[1].y)/2;
+ }
 });
+pad.addEventListener('pointermove',e=>{
+ if(!pointers.has(e.pointerId))return;
+ const old=pointers.get(e.pointerId),cur={x:e.clientX,y:e.clientY};pointers.set(e.pointerId,cur);
+ if(pointers.size===2){
+   clearTimeout(holdTimer);const ps=[...pointers.values()];const y=(ps[0].y+ps[1].y)/2;
+   if(lastTwoY!==null){const dy=y-lastTwoY;if(Math.abs(dy)>1.3){pendingWheel+=dy>0?-80:80;lastTwoY=y;scheduleFlush()}}
+   return;
+ }
+ if(primaryId===e.pointerId){
+   if(start&&Math.abs(cur.x-start.x)+Math.abs(cur.y-start.y)>5){moved=true;clearTimeout(holdTimer)}
+   pendingDX+=(cur.x-old.x)*sensitivity;pendingDY+=(cur.y-old.y)*sensitivity;scheduleFlush();
+ }
+});
+function finishPointer(e){
+ clearTimeout(holdTimer);
+ const wasTwo=pointers.size===2;
+ pointers.delete(e.pointerId);
+ if(wasTwo&&pointers.size===1){lastTwoY=null;primaryId=null;start=null;moved=true;return}
+ if(primaryId===e.pointerId){
+   const now=Date.now();
+   if(dragging){send({type:'mouse',button:'left',action:'up'})}
+   else if(!moved){
+     if(now-lastTap<320){send({type:'mouse',button:'left',action:'double'})}
+     else send({type:'mouse',button:'left',action:'click'});
+     lastTap=now;
+   }
+   primaryId=null;start=null;dragging=false;moved=false;
+ }
+ if(pointers.size<2)lastTwoY=null;
+}
+pad.addEventListener('pointerup',finishPointer);pad.addEventListener('pointercancel',finishPointer);
+document.querySelectorAll('[data-mouse]').forEach(b=>b.addEventListener('pointerdown',e=>{e.preventDefault();haptic();send({type:'mouse',button:b.dataset.mouse,action:'click'})}));
+
+// Numpad
+const numSpec=[
+ ['7','8','9','/'],['4','5','6','*'],['1','2','3','-'],['0','.', 'ENTER','+'],['HOME','END','PAGEUP','PAGEDOWN']
+];
+const num=document.getElementById('numpad');
+numSpec.flat().forEach(k=>{
+ const b=document.createElement('button');b.className='gridBtn';b.textContent=k==='ENTER'?'Enter':k;
+ b.addEventListener('pointerdown',e=>{e.preventDefault();haptic(); if(k.length===1)sendText(k); else sendKey(k)});
+ num.appendChild(b);
+});
+
+// Media
+const media=[
+ ['⏮','MEDIA_PREV'],['⏯','MEDIA_PLAY'],['⏭','MEDIA_NEXT'],
+ ['🔇','VOLUME_MUTE'],['Vol −','VOLUME_DOWN'],['Vol +','VOLUME_UP'],
+ ['Home','HOME'],['PgUp','PAGEUP'],['PgDn','PAGEDOWN']
+];
+const mg=document.getElementById('mediaGrid');
+media.forEach(([label,key])=>{const b=document.createElement('button');b.textContent=label;b.addEventListener('pointerdown',e=>{e.preventDefault();haptic();sendKey(key)});mg.appendChild(b)});
+
+// Shortcuts
+const shortcuts=[
+ ['Copy','C',['CTRL']],['Paste','V',['CTRL']],['Cut','X',['CTRL']],['Undo','Z',['CTRL']],
+ ['Redo','Y',['CTRL']],['Save','S',['CTRL']],['Find','F',['CTRL']],['Select All','A',['CTRL']],
+ ['Alt + Tab','TAB',['ALT']],['Desktop','D',['WIN']],['Explorer','E',['WIN']],['Task Manager','ESC',['CTRL','SHIFT']]
+];
+const sg=document.getElementById('shortGrid');
+shortcuts.forEach(([label,key,mods])=>{const b=document.createElement('button');b.textContent=label;b.addEventListener('pointerdown',e=>{e.preventDefault();haptic();sendKey(key,mods)});sg.appendChild(b)});
 
 document.addEventListener('contextmenu',e=>e.preventDefault());
 document.addEventListener('gesturestart',e=>e.preventDefault());
