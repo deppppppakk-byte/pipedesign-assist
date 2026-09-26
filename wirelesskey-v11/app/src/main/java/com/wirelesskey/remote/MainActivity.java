@@ -2,6 +2,8 @@ package com.wirelesskey.remote;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.view.View;
+import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -25,8 +27,11 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
         getWindow().setStatusBarColor(Color.rgb(11,18,32));
         getWindow().setNavigationBarColor(Color.rgb(11,18,32));
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        applyImmersiveMode();
 
         prefs = getSharedPreferences("wirelesskey", MODE_PRIVATE);
 
@@ -43,8 +48,28 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
 
         webView.addJavascriptInterface(new Bridge(), "Android");
+        webView.setOnLongClickListener(v -> true);
+        webView.setLongClickable(false);
+
         setContentView(webView);
         webView.loadUrl("file:///android_asset/index.html");
+    }
+
+    private void applyImmersiveMode() {
+        getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                        | View.SYSTEM_UI_FLAG_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+        );
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) applyImmersiveMode();
     }
 
     private String normalizeHost(String raw) {
@@ -74,8 +99,10 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void saveSettings(String host, String code) {
-            prefs.edit().putString("host", host == null ? "" : host.trim())
-                    .putString("code", code == null ? "" : code.trim()).apply();
+            prefs.edit()
+                    .putString("host", host == null ? "" : host.trim())
+                    .putString("code", code == null ? "" : code.trim())
+                    .apply();
         }
 
         @JavascriptInterface
@@ -92,7 +119,7 @@ public class MainActivity extends Activity {
                     if (code == 200) callback("ready", "PC receiver found");
                     else callback("error", "Receiver returned HTTP " + code);
                 } catch (Exception e) {
-                    callback("error", "PC unreachable. Check receiver, Wi-Fi and Windows Firewall.");
+                    callback("error", "PC unreachable");
                 } finally {
                     if (c != null) c.disconnect();
                 }
@@ -103,10 +130,12 @@ public class MainActivity extends Activity {
         public void sendEvent(String rawHost, String pairCode, String eventJson) {
             final String host = normalizeHost(rawHost);
             final String code = pairCode == null ? "" : pairCode.trim();
+
             if (host.equals(":8765") || code.length() != 6) {
-                callback("error", "Enter laptop IP and 6-digit pairing code");
+                callback("error", "Enter laptop IP and 6-digit code");
                 return;
             }
+
             io.execute(() -> {
                 HttpURLConnection c = null;
                 try {
@@ -122,9 +151,11 @@ public class MainActivity extends Activity {
                     c.setDoOutput(true);
                     c.setRequestProperty("Content-Type", "application/json");
                     c.setFixedLengthStreamingMode(bytes.length);
+
                     try (OutputStream os = c.getOutputStream()) {
                         os.write(bytes);
                     }
+
                     int rc = c.getResponseCode();
                     if (rc == 200) callback("connected", "Connected");
                     else if (rc == 403) callback("error", "Wrong pairing code");
