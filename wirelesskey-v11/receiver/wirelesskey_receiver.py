@@ -73,6 +73,7 @@ MOUSEEVENTF_RIGHTUP = 0x0010
 MOUSEEVENTF_MIDDLEDOWN = 0x0020
 MOUSEEVENTF_MIDDLEUP = 0x0040
 MOUSEEVENTF_WHEEL = 0x0800
+MOUSEEVENTF_HWHEEL = 0x01000
 
 VK = {
     "BACKSPACE": 0x08, "TAB": 0x09, "ENTER": 0x0D, "SHIFT": 0x10,
@@ -284,6 +285,12 @@ def mouse_wheel(delta):
     inp = INPUT(INPUT_MOUSE, ii)
     user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp))
 
+def mouse_hwheel(delta):
+    ii = INPUT_I()
+    ii.mi = MOUSEINPUT(0, 0, ctypes.c_ulong(int(delta)).value, MOUSEEVENTF_HWHEEL, 0, None)
+    inp = INPUT(INPUT_MOUSE, ii)
+    user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp))
+
 def process_event(event):
     etype = event.get("type")
     if etype == "text":
@@ -296,6 +303,8 @@ def process_event(event):
         mouse_button(str(event.get("button", "left")), str(event.get("action", "click")))
     elif etype == "wheel":
         mouse_wheel(event.get("delta", 0))
+    elif etype == "hwheel":
+        mouse_hwheel(event.get("delta", 0))
     else:
         raise ValueError("Unknown event")
 
