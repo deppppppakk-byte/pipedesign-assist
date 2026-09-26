@@ -794,6 +794,9 @@ def main():
     rotate_pair_code()
 
     ui = ReceiverUI()
+    if "--hidden" in sys.argv:
+        ui.root.withdraw()
+
     threading.Thread(target=run_server, daemon=True).start()
     threading.Thread(target=start_tray, daemon=True).start()
 
