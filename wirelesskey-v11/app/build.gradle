@@ -11,6 +11,13 @@ android {
         versionCode 6
         versionName "3.1"
     }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.debug
+        }
+    }
 }
 
 dependencies {
