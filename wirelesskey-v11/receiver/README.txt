@@ -1,7 +1,7 @@
-WIRELESSKEY 3.0 - WINDOWS RECEIVER
+WIRELESSKEY 3.1 - WINDOWS RECEIVER
 ===================================
 
-WirelessKey 3.0 is a local Android-to-Windows keyboard and precision
+WirelessKey 3.1 is a local Android-to-Windows keyboard and precision
 touchpad system. The v3 connection uses encrypted WSS/TLS traffic and
 pins the receiver certificate discovered on your LAN.
 
@@ -11,7 +11,7 @@ QUICK START
 2. Extract this ZIP.
 3. Double-click WirelessKeyReceiver.exe.
 4. If Windows Firewall asks, allow PRIVATE networks.
-5. On Android open WirelessKey 3.0.
+5. On Android open WirelessKey 3.1.
 6. Tap Find PC.
 7. Select this computer.
 8. Enter the 6-digit pairing code shown in the receiver window.
@@ -81,3 +81,17 @@ ALLOW_FIREWALL_PRIVATE.bat
 START_WITH_WINDOWS.bat
 REMOVE_STARTUP.bat
 README.txt
+
+
+V3.1 FINAL QA FIXES
+--------------------
+- Revit two-letter shortcuts no longer receive an AutoCAD-style Enter.
+- Multi-finger gestures are locked until every finger is lifted, preventing
+  accidental right-clicks after 3/4-finger gestures.
+- Pinch zoom and two-finger scrolling use gesture arbitration instead of
+  firing at the same time.
+- Trusted Android tokens follow the PC certificate identity rather than
+  its current IP/port, so rediscovery after DHCP changes can reuse trust.
+- Windows startup registration handles installation paths containing spaces.
+- Android cleartext networking is disabled.
+- Launcher icon and top connection/status styling are included.
