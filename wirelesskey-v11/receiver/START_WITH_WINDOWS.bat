@@ -5,9 +5,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "$app=$env:APP; $value='"
 if errorlevel 1 (
   echo.
   echo Could not add WirelessKey to startup.
-  pause
+  if /I not "%~1"=="--silent" pause
   exit /b 1
 )
 echo.
 echo WirelessKey will now start in the system tray when you sign in to Windows.
-pause
+if /I not "%~1"=="--silent" pause
