@@ -24,7 +24,7 @@ from cryptography.x509.oid import NameOID
 from websockets.legacy.server import serve
 
 APP_NAME = "WirelessKey"
-VERSION = "3.0"
+VERSION = "3.1"
 DISCOVERY_PORT = 8766
 PORT_START = 8765
 PORT_END = 8775
@@ -592,7 +592,7 @@ class ReceiverUI:
         self.tk = tk
         self.messagebox = messagebox
         self.root = tk.Tk()
-        self.root.title("WirelessKey Receiver 3.0")
+        self.root.title("WirelessKey Receiver 3.1")
         self.root.geometry("440x430")
         self.root.minsize(420, 400)
         self.root.configure(bg="#0b1220")
@@ -615,7 +615,7 @@ class ReceiverUI:
         tk = self.tk
         title = tk.Label(
             self.root,
-            text="WirelessKey 3.0",
+            text="WirelessKey 3.1",
             font=("Segoe UI", 22, "bold"),
             fg="white",
             bg="#0b1220",
@@ -785,8 +785,77 @@ def start_tray():
         pystray.MenuItem("New Pairing Code", tray_new_code),
         pystray.MenuItem("Exit", tray_exit),
     )
-    tray_icon = pystray.Icon("WirelessKey", create_tray_image(), "WirelessKey 3.0", menu)
+    tray_icon = pystray.Icon("WirelessKey", create_tray_image(), "WirelessKey 3.1", menu)
     tray_icon.run()
+
+async def self_test_async():
+    from websockets.legacy.client import connect
+
+    ensure_certificate()
+    rotate_pair_code("self-test")
+
+    server_ssl = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    server_ssl.minimum_version = ssl.TLSVersion.TLSv1_2
+    server_ssl.load_cert_chain(str(CERT_FILE), str(KEY_FILE))
+
+    server = await serve(
+        websocket_handler,
+        "127.0.0.1",
+        0,
+        ssl=server_ssl,
+        ping_interval=10,
+        ping_timeout=10,
+        max_size=1024 * 1024,
+        compression=None,
+    )
+
+    port = server.sockets[0].getsockname()[1]
+
+    client_ssl = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    client_ssl.check_hostname = False
+    client_ssl.verify_mode = ssl.CERT_NONE
+
+    try:
+        async with connect(
+            f"wss://127.0.0.1:{port}/ws",
+            ssl=client_ssl,
+            ping_interval=None,
+        ) as ws:
+            await ws.send(json.dumps({
+                "type": "auth",
+                "code": current_pair_code(),
+                "device": "WirelessKey Self Test",
+                "appVersion": VERSION,
+            }))
+
+            auth = json.loads(await asyncio.wait_for(ws.recv(), timeout=4))
+            assert auth.get("type") == "auth" and auth.get("ok") is True, auth
+            assert auth.get("secure") is True, auth
+
+            stamp = int(time.time() * 1000)
+            await ws.send(json.dumps({"type": "ping", "ts": stamp}))
+
+            pong = None
+            deadline = time.time() + 4
+            while time.time() < deadline:
+                msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=4))
+                if msg.get("type") == "pong":
+                    pong = msg
+                    break
+
+            assert pong is not None, "No pong received"
+            assert pong.get("ts") == stamp, pong
+
+            ctx = get_foreground_context()
+            assert isinstance(ctx, dict) and "profile" in ctx and "activeApp" in ctx, ctx
+    finally:
+        server.close()
+        await server.wait_closed()
+
+    print("WIRELESSKEY_V3_1_SELF_TEST_OK")
+
+def run_self_test():
+    asyncio.run(self_test_async())
 
 def main():
     global ui
@@ -804,4 +873,7 @@ def main():
     shutdown_event.set()
 
 if __name__ == "__main__":
-    main()
+    if "--self-test" in sys.argv:
+        run_self_test()
+    else:
+        main()
