@@ -1,0 +1,37 @@
+name: Temporary WirelessKey v1.1 APK Build
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'wirelesskey-v11/**'
+
+jobs:
+  build-wirelesskey:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wirelesskey-v11
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
+      - name: Build APK
+        run: gradle :app:assembleDebug --stacktrace
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: WirelessKey-v1.1-APK
+          path: wirelesskey-v11/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
