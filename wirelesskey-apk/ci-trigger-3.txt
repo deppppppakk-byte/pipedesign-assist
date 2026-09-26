@@ -1,0 +1,1 @@
+Rebuild using explicit sdkmanager path.
