@@ -881,10 +881,23 @@ public class MainActivity extends Activity implements SecureLink.Listener {
                 LinearLayout.LayoutParams.MATCH_PARENT,dp(20)));
         TextView diag=textView(
                 "Coalesced  "+link.getCoalescedPointerEvents()+
-                        "   ·   Dropped  "+link.getDroppedPointerEvents(),
+                        "   ·   Dropped  "+link.getDroppedPointerEvents()+
+                        "   ·   Queue  "+formatBytes(link.getSocketQueueBytes()),
                 8.3f,Color.rgb(156,167,181),false);
         diagnosticsCard.addView(diag,new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,dp(25)));
+
+        Button diagnostics=button("Diagnostics",8.7f);
+        diagnostics.setElevation(0);
+        diagnostics.setBackground(stateBg(
+                Color.rgb(28,41,59),
+                Color.rgb(38,55,77),
+                10,0));
+        diagnostics.setOnClickListener(v->{popup.dismiss();showAndroidDiagnostics();});
+        LinearLayout.LayoutParams diagnosticsLp=new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(36));
+        diagnosticsLp.topMargin=dp(5);
+        diagnosticsCard.addView(diagnostics,diagnosticsLp);
 
         Button disconnect=button("Disconnect PC",8.7f);
         disconnect.setElevation(0);
@@ -925,6 +938,104 @@ public class MainActivity extends Activity implements SecureLink.Listener {
                 .setDuration(180)
                 .setInterpolator(new android.view.animation.DecelerateInterpolator())
                 .start();
+    }
+
+    private String formatBytes(long bytes){
+        if(bytes<1024L)return bytes+" B";
+        if(bytes<1024L*1024L)return String.format(java.util.Locale.US,"%.1f KB",bytes/1024f);
+        return String.format(java.util.Locale.US,"%.1f MB",bytes/(1024f*1024f));
+    }
+
+    private int rememberedPcCount(){
+        try{
+            return new JSONArray(link.loadKnownPeersJson()).length();
+        }catch(Exception ignored){
+            return 0;
+        }
+    }
+
+    private void showAndroidDiagnostics(){
+        LinearLayout box=card(16);
+        box.setPadding(dp(14),dp(12),dp(14),dp(14));
+
+        TextView title=textView("WirelessKey Diagnostics",15f,TEXT,true);
+        TextView subtitle=textView("Android · v4.5 · local encrypted link",7.7f,MUTED,false);
+        box.addView(title,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(28)));
+        box.addView(subtitle,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(22)));
+
+        LinearLayout grid=new LinearLayout(this);
+        grid.setOrientation(LinearLayout.VERTICAL);
+
+        long latency=link.getLastLatencyMs();
+        String[][] rows={
+                {"Connection",link.isConnected()?"Connected":"Offline"},
+                {"Current PC",selectedPcName()},
+                {"Latency",latency>=0?latency+" ms":"—"},
+                {"Pointer queue",formatBytes(link.getSocketQueueBytes())},
+                {"Coalesced moves",String.valueOf(link.getCoalescedPointerEvents())},
+                {"Dropped moves",String.valueOf(link.getDroppedPointerEvents())},
+                {"Reconnect attempts",String.valueOf(link.getReconnectAttempt())},
+                {"Remembered PCs",String.valueOf(rememberedPcCount())},
+                {"Pointer preset",pointerPreset==null?"custom":pointerPreset},
+                {"Transport","WSS / TLS certificate pinning"}
+        };
+
+        for(String[] row:rows){
+            LinearLayout line=new LinearLayout(this);
+            line.setOrientation(LinearLayout.HORIZONTAL);
+            line.setGravity(Gravity.CENTER_VERTICAL);
+
+            TextView name=textView(row[0],8.3f,MUTED,false);
+            TextView value=textView(row[1],8.4f,TEXT,true);
+            value.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
+            line.addView(name,new LinearLayout.LayoutParams(0,dp(28),1f));
+            line.addView(value,new LinearLayout.LayoutParams(0,dp(28),1.2f));
+            grid.addView(line,new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,dp(28)));
+        }
+        box.addView(grid,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        Button test=button("Run connection test",8.8f);
+        test.setElevation(0);
+        test.setBackground(stateBg(ACCENT_SOFT,Color.rgb(43,79,126),10,0));
+        TextView result=textView("",8.2f,MUTED,true);
+        result.setGravity(Gravity.CENTER);
+
+        test.setOnClickListener(v->{
+            if(!link.runConnectionTest()){
+                result.setText("Not connected");
+                result.setTextColor(Color.rgb(255,176,186));
+                return;
+            }
+            result.setText("Testing…");
+            result.setTextColor(Color.rgb(255,215,148));
+            handler.postDelayed(()->{
+                long ms=link.getLastLatencyMs();
+                if(link.isConnected()&&ms>=0){
+                    result.setText("Healthy · "+ms+" ms");
+                    result.setTextColor(SUCCESS);
+                }else{
+                    result.setText("No response");
+                    result.setTextColor(Color.rgb(255,176,186));
+                }
+            },900);
+        });
+
+        LinearLayout.LayoutParams testLp=new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(38));
+        testLp.topMargin=dp(9);
+        box.addView(test,testLp);
+        box.addView(result,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(26)));
+
+        new AlertDialog.Builder(this)
+                .setView(box)
+                .setPositiveButton("Close",null)
+                .show();
     }
 
     private void applyTouchpadSettings(){
