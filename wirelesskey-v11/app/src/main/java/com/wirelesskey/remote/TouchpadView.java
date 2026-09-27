@@ -22,6 +22,8 @@ public final class TouchpadView extends View {
     private final Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint border = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint accent = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint subtle = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Map<Integer, float[]> pointers = new HashMap<>();
     private Sender sender;
 
@@ -53,9 +55,11 @@ public final class TouchpadView extends View {
         border.setColor(0xff334a69);
         border.setStyle(Paint.Style.STROKE);
         border.setStrokeWidth(1.2f * density);
-        text.setColor(0xff7690ad);
+        text.setColor(0xff9fb5d0);
         text.setTextAlign(Paint.Align.CENTER);
         text.setTextSize(12f * density);
+        accent.setColor(0xff3b82f6);
+        subtle.setColor(0xff1d2b40);
     }
 
     public void setSender(Sender sender) {
@@ -69,11 +73,42 @@ public final class TouchpadView extends View {
         RectF rect = new RectF(1, 1, getWidth() - 1, getHeight() - 1);
         canvas.drawRoundRect(rect, r, r, bg);
         canvas.drawRoundRect(rect, r, r, border);
-        canvas.drawText("Precision Touchpad", getWidth() / 2f, getHeight() / 2f, text);
-        text.setTextSize(9f * density);
-        canvas.drawText("Tap · Hold drag · 2-finger scroll/right-click · 3/4-finger gestures",
-                getWidth() / 2f, getHeight() - 14f * density, text);
-        text.setTextSize(12f * density);
+
+        float headerY = 26f * density;
+        canvas.drawRoundRect(new RectF(12f*density,12f*density,getWidth()-12f*density,42f*density),
+                10f*density,10f*density,subtle);
+
+        text.setTextAlign(Paint.Align.LEFT);
+        text.setTextSize(10f * density);
+        text.setColor(0xffdbeafe);
+        canvas.drawText("PRECISION TOUCHPAD", 22f*density, headerY+4f*density, text);
+
+        text.setTextAlign(Paint.Align.RIGHT);
+        text.setColor(0xff7dd3fc);
+        String mode = dragging ? "DRAG" : (pointers.size()>1 ? pointers.size()+" FINGERS" : "READY");
+        canvas.drawText(mode, getWidth()-22f*density, headerY+4f*density, text);
+
+        text.setTextAlign(Paint.Align.CENTER);
+        text.setColor(0xff7591af);
+        text.setTextSize(11f * density);
+        canvas.drawText("Move pointer anywhere", getWidth()/2f, getHeight()/2f - 5f*density, text);
+
+        text.setTextSize(8.5f * density);
+        text.setColor(0xff647f9e);
+        canvas.drawText("Tap click  ·  Hold drag  ·  2-finger scroll/right-click",
+                getWidth()/2f, getHeight()/2f + 16f*density, text);
+        canvas.drawText("3-finger apps  ·  4-finger desktops  ·  Pinch zoom",
+                getWidth()/2f, getHeight()-18f*density, text);
+
+        if(!pointers.isEmpty()){
+            float[] cc=centroid();
+            accent.setStyle(Paint.Style.FILL);
+            accent.setAlpha(42);
+            canvas.drawCircle(cc[0],cc[1],18f*density,accent);
+            accent.setAlpha(180);
+            canvas.drawCircle(cc[0],cc[1],4f*density,accent);
+            accent.setAlpha(255);
+        }
     }
 
     private void emit(JSONObject obj) {
@@ -160,6 +195,7 @@ public final class TouchpadView extends View {
         if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) {
             if (sender != null) sender.haptic();
             pointers.put(id, new float[]{e.getX(index), e.getY(index)});
+            invalidate();
             if (pointers.size() == 1) {
                 suppressUntilClear = false;
                 primaryId = id;
@@ -198,6 +234,7 @@ public final class TouchpadView extends View {
 
                 float dx = nx-old[0], dy = ny-old[1];
                 pointers.put(pid,new float[]{nx,ny});
+                if (pointers.size() > 1) invalidate();
 
                 if (suppressUntilClear) continue;
 
@@ -257,6 +294,7 @@ public final class TouchpadView extends View {
             final float totalY = gestureLastY-gestureStartY;
             final long elapsed = SystemClock.uptimeMillis()-downAt;
             pointers.remove(id);
+            invalidate();
 
             if (suppressUntilClear) {
                 if (pointers.isEmpty()) suppressUntilClear=false;
