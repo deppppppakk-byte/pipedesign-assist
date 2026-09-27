@@ -772,12 +772,19 @@ public class MainActivity extends Activity implements SecureLink.Listener {
 
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(5),dp(5),dp(3),dp(5));
+        panel.setBackground(gradient(
+                Color.rgb(17,20,25),
+                Color.rgb(11,14,18),
+                14,
+                Color.rgb(31,36,44)));
+        panel.setElevation(dp(0.8f));
 
         LinearLayout fn = row();
         String[] fnLabels={"Esc","F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12","Ins","Del"};
         String[] fnKeys={"ESC","F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12","INSERT","DELETE"};
         for(int i=0;i<fnKeys.length;i++) addKey(fn,KeySpec.special(fnKeys[i],fnLabels[i],i==0?1.25f:1f),8.5f);
-        panel.addView(fn,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,0,0.78f));
+        panel.addView(fn,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,0,0.70f));
 
         List<KeySpec[]> rows=new ArrayList<>();
         rows.add(new KeySpec[]{
@@ -803,7 +810,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
             LinearLayout r=row();
             for(KeySpec s:specs) addKey(r,s,10.5f);
             LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,0,1f);
-            lp.topMargin=dp(3);
+            lp.topMargin=dp(2);
             panel.addView(r,lp);
         }
         return panel;
@@ -831,16 +838,45 @@ public class MainActivity extends Activity implements SecureLink.Listener {
 
     private void addKey(LinearLayout row, KeySpec spec, float sp) {
         Button b=button(displayFor(spec),sp);
-        if(sp<=9f){
-            b.setTextColor(Color.rgb(180,190,204));
+        b.setElevation(dp(0.55f));
+
+        boolean functionKey=sp<=9f;
+        boolean modifier="mod".equals(spec.type)||"shift".equals(spec.type)||"caps".equals(spec.type);
+        boolean special="special".equals(spec.type);
+
+        if("char".equals(spec.type)){
+            b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+            b.setTextColor(Color.rgb(240,243,248));
             b.setBackground(stateBg(
-                    Color.rgb(24,28,35),
-                    Color.rgb(39,45,55),
+                    KEY,
+                    Color.rgb(49,56,68),
+                    8,0));
+        }else if(functionKey){
+            b.setTypeface(Typeface.DEFAULT,Typeface.NORMAL);
+            b.setTextColor(Color.rgb(155,166,180));
+            b.setBackground(stateBg(
+                    Color.rgb(21,25,31),
+                    Color.rgb(36,42,51),
                     7,0));
-            b.setElevation(dp(0.3f));
+            b.setElevation(dp(0.2f));
+        }else if(modifier){
+            b.setTextColor(Color.rgb(188,198,211));
+            b.setBackground(stateBg(
+                    KEY_ALT,
+                    Color.rgb(42,48,58),
+                    8,0));
+        }else if(special){
+            boolean emphasized="ENTER".equals(spec.key)||"SPACE".equals(spec.key);
+            b.setTextColor(emphasized?Color.rgb(225,235,249):Color.rgb(184,194,207));
+            b.setBackground(stateBg(
+                    emphasized?Color.rgb(34,43,55):KEY_ALT,
+                    emphasized?Color.rgb(47,61,78):Color.rgb(42,48,58),
+                    8,0));
         }
-        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,spec.weight);
-        lp.rightMargin=dp(3);
+
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(
+                0,LinearLayout.LayoutParams.MATCH_PARENT,spec.weight);
+        lp.rightMargin=dp(2);
         row.addView(b,lp);
 
         if ("char".equals(spec.type)) printableBindings.add(new KeyBinding(b,spec));
@@ -859,12 +895,14 @@ public class MainActivity extends Activity implements SecureLink.Listener {
                 Runnable repeating;
                 @Override public boolean onTouch(View v, MotionEvent e) {
                     if(e.getActionMasked()==MotionEvent.ACTION_DOWN){
+                        v.animate().scaleX(0.965f).scaleY(0.965f).setDuration(45).start();
                         haptic();pressSpec(spec);
                         repeating=new Runnable(){@Override public void run(){pressSpec(spec);handler.postDelayed(this,58);}};
                         handler.postDelayed(repeating,400);
                         return true;
                     }
                     if(e.getActionMasked()==MotionEvent.ACTION_UP||e.getActionMasked()==MotionEvent.ACTION_CANCEL){
+                        v.animate().scaleX(1f).scaleY(1f).setDuration(70).start();
                         if(repeating!=null)handler.removeCallbacks(repeating);
                         return true;
                     }
@@ -927,7 +965,13 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         for(Map.Entry<String,List<Button>> e:modifierButtons.entrySet()){
             boolean active=("SHIFT".equals(e.getKey())&&shiftOn)||
                     ("CAPSLOCK".equals(e.getKey())&&capsOn)||activeMods.contains(e.getKey());
-            for(Button b:e.getValue())b.setBackground(bg(active?KEY_ACTIVE:KEY,7,active?Color.rgb(96,165,250):BORDER));
+            for(Button b:e.getValue()){
+                b.setTextColor(active?Color.rgb(225,238,255):Color.rgb(188,198,211));
+                b.setBackground(stateBg(
+                        active?ACCENT_SOFT:KEY_ALT,
+                        active?Color.rgb(43,80,127):Color.rgb(42,48,58),
+                        8,0));
+            }
         }
     }
 
