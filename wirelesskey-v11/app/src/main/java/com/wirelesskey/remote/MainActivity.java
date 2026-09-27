@@ -368,7 +368,12 @@ public class MainActivity extends Activity implements SecureLink.Listener {
 
         if ("char".equals(spec.type)) printableBindings.add(new KeyBinding(b,spec));
         if ("mod".equals(spec.type)||"shift".equals(spec.type)||"caps".equals(spec.type)) {
-            modifierButtons.computeIfAbsent(spec.key,k->new ArrayList<>()).add(b);
+            List<Button> group = modifierButtons.get(spec.key);
+            if (group == null) {
+                group = new ArrayList<>();
+                modifierButtons.put(spec.key, group);
+            }
+            group.add(b);
         }
 
         boolean repeat=Arrays.asList("BACKSPACE","DELETE","LEFT","RIGHT","UP","DOWN").contains(spec.key);
