@@ -8,3 +8,5 @@ source_sha256=d9036e7c6eae3a0eb3f184bf38570c4965be48aae8c61bc83b871af62d956a20
 attempt=4 v1.1 stale-trust-repair-complete-keyboard
 source_sha256=a01283a547cd854dfc4971545eb8abc2fffefacf05619cd12a5948d83e7c384f
 attempt=5 v1.1 corrected-source-path
+attempt=6 v1.1 final-packaging
+source_sha256=a8599edfc3207c06c817d9a2e6195a729015dc96e94c6f041e84d60792883274
