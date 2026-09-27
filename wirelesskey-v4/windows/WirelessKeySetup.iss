@@ -34,6 +34,8 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 [Files]
 Source: "publish\WirelessKeyReceiver.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "README.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "install-firewall.ps1"; DestDir: "{app}\support"; Flags: ignoreversion
+Source: "remove-firewall.ps1"; DestDir: "{app}\support"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\WirelessKey Receiver"; Filename: "{app}\{#MyAppExeName}"
@@ -44,15 +46,11 @@ Name: "{autodesktop}\WirelessKey"; Filename: "{app}\{#MyAppExeName}"; Tasks: des
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "WirelessKeyReceiver"; ValueData: """{app}\{#MyAppExeName}"" --hidden"; Tasks: startup; Flags: uninsdeletevalue
 
 [Run]
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""WirelessKey Receiver TCP"""; Flags: runhidden waituntilterminated; StatusMsg: "Refreshing WirelessKey firewall rules..."
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""WirelessKey Discovery UDP"""; Flags: runhidden waituntilterminated
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""WirelessKey Receiver TCP"" dir=in action=allow profile=private protocol=TCP localport=8765-8775 program=""{app}\{#MyAppExeName}"" enable=yes"; Flags: runhidden waituntilterminated; StatusMsg: "Allowing WirelessKey on private networks..."
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""WirelessKey Discovery UDP"" dir=in action=allow profile=private protocol=UDP localport=8766 program=""{app}\{#MyAppExeName}"" enable=yes"; Flags: runhidden waituntilterminated
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\support\install-firewall.ps1"" -ProgramPath ""{app}\{#MyAppExeName}"""; Flags: runhidden waituntilterminated; StatusMsg: "Allowing WirelessKey on private networks..."
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch WirelessKey Receiver"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""WirelessKey Receiver TCP"""; Flags: runhidden waituntilterminated
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""WirelessKey Discovery UDP"""; Flags: runhidden waituntilterminated
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\support\remove-firewall.ps1"""; Flags: runhidden waituntilterminated; RunOnceId: "WirelessKeyFirewallCleanup"
 
 [Code]
 function PrepareToInstall(var NeedsRestart: Boolean): String;
