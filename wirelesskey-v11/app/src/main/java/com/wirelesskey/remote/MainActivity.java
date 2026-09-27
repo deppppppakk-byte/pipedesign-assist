@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -36,11 +37,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.android.gms.tasks.Task;
-import com.google.mlkit.vision.barcode.common.Barcode;
-import com.google.mlkit.vision.codescanner.GmsBarcodeScanner;
-import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions;
-import com.google.mlkit.vision.codescanner.GmsBarcodeScanning;
 
 
 public class MainActivity extends Activity implements SecureLink.Listener {
@@ -56,6 +52,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private SecureLink link;
 
+    private static final int QR_SCAN_REQUEST = 4120;
     private EditText hostInput, codeInput;
     private Button connectButton, hapticButton;
     private TextView statusText, appText, latencyText;
@@ -219,7 +216,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         bar.setBackground(bg(PANEL,11,Color.rgb(29,43,64)));
         bar.setElevation(dp(1.5f));
 
-        TextView brand = textView("WirelessKey 4.1.2", compact?10.5f:12f, TEXT, true);
+        TextView brand = textView("WirelessKey 4.1.3", compact?10.5f:12f, TEXT, true);
         brand.setGravity(Gravity.CENTER_VERTICAL);
         bar.addView(brand, new LinearLayout.LayoutParams(dp(compact?94:118), LinearLayout.LayoutParams.MATCH_PARENT));
 
@@ -396,36 +393,31 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     }
 
     private void startQrScan() {
-        onStatus("discovering","Opening secure QR scanner...");
+        onStatus("discovering","Opening WirelessKey scanner...");
+        try {
+            Intent intent = new Intent(this, QRScannerActivity.class);
+            startActivityForResult(intent, QR_SCAN_REQUEST);
+        } catch (Exception error) {
+            onStatus("error","Scanner could not open · use Find PC or Manual");
+        }
+    }
 
-        GmsBarcodeScannerOptions options = new GmsBarcodeScannerOptions.Builder()
-                .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-                .enableAutoZoom()
-                .build();
-
-        GmsBarcodeScanner scanner = GmsBarcodeScanning.getClient(this, options);
-
-        scanner.startScan()
-                .addOnSuccessListener(barcode -> {
-                    String contents = barcode.getRawValue();
-                    if (contents == null || contents.trim().isEmpty()) {
-                        onStatus("error","QR code contained no pairing data");
-                        return;
-                    }
-
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == QR_SCAN_REQUEST) {
+            if (resultCode == Activity.RESULT_OK && data != null) {
+                String contents = data.getStringExtra(QRScannerActivity.EXTRA_QR_VALUE);
+                if (contents != null && !contents.trim().isEmpty()) {
                     onStatus("discovering","QR scanned · verifying PC identity...");
                     link.connectPairingQr(contents.trim());
                     handler.postDelayed(this::reloadKnownPeersIntoSpinner,450);
-                })
-                .addOnCanceledListener(() ->
-                        onStatus("offline","QR scan cancelled"))
-                .addOnFailureListener(error -> {
-                    String detail = error == null ? "" : String.valueOf(error.getMessage());
-                    onStatus("error","QR scanner unavailable · use Find PC or Manual");
-                    if (detail != null && !detail.trim().isEmpty()) {
-                        android.util.Log.e("WirelessKey","Google Code Scanner failed: "+detail);
-                    }
-                });
+                    return;
+                }
+            }
+            onStatus("offline","QR scan cancelled");
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     private void reloadKnownPeersIntoSpinner() {
