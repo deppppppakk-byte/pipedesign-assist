@@ -175,6 +175,7 @@ public final class QRScannerActivity extends ComponentActivity {
         });
     }
 
+    @androidx.camera.core.ExperimentalGetImage
     private void startCamera() {
         if (completed.get() || isFinishing()) return;
 
