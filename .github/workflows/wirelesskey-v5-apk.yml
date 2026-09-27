@@ -26,7 +26,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'versionName "5.1.0"' wirelesskey-v5/android/app/build.gradle
+          grep -Eq "versionName[[:space:]]+['\"]5\\.1\\.0['\"]" wirelesskey-v5/android/app/build.gradle
           grep -q 'sensorLandscape' wirelesskey-v5/android/app/src/main/AndroidManifest.xml
           grep -q 'Multiwork' wirelesskey-v5/android/app/src/main/java/in/tamishra/wirelesskey/MainActivity.java
           grep -q '"Deck"' wirelesskey-v5/android/app/src/main/java/in/tamishra/wirelesskey/MainActivity.java
