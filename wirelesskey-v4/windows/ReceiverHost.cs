@@ -47,6 +47,17 @@ internal sealed class ReceiverHost : IAsyncDisposable
     public string PairCode { get { lock (_stateGate) return EnsurePairCode(); } }
     public string Fingerprint { get; private set; } = "";
     public string LocalIp => ResolveLocalIp();
+    public string PairingPayload => JsonSerializer.Serialize(new
+    {
+        type = "wirelesskey_pair",
+        version = "4.1",
+        name = Environment.MachineName,
+        pcName = Environment.MachineName,
+        ip = LocalIp,
+        port = Port,
+        fingerprint = Fingerprint,
+        code = PairCode
+    });
     public IReadOnlyCollection<ConnectedDevice> ConnectedDevices => _connected.Values.ToArray();
 
     public ReceiverHost()
@@ -283,7 +294,7 @@ internal sealed class ReceiverHost : IAsyncDisposable
                 ok = true,
                 token = auth.Token,
                 pcName = Environment.MachineName,
-                version = "4.0",
+                version = "4.1",
                 secure = true,
                 native = true
             }, sendLock, context.RequestAborted);
@@ -302,6 +313,11 @@ internal sealed class ReceiverHost : IAsyncDisposable
 
                 if (messageType == "event" && obj.TryGetProperty("event", out var ev))
                     ProcessEvent(ev);
+                else if (messageType == "clipboard_get")
+                {
+                    var clipboard = ClipboardBridge.GetText();
+                    await SendJsonAsync(ws, new { type = "clipboard", text = clipboard }, sendLock, context.RequestAborted);
+                }
                 else if (messageType == "ping")
                 {
                     var ts = obj.TryGetProperty("ts", out var tsEl) ? tsEl.GetInt64() : 0;
@@ -478,6 +494,9 @@ internal sealed class ReceiverHost : IAsyncDisposable
             case "hwheel":
                 InputInjector.HWheel(ev.TryGetProperty("delta", out var hw) ? hw.GetInt32() : 0);
                 break;
+            case "clipboard_set":
+                ClipboardBridge.SetText(ev.TryGetProperty("text", out var clip) ? clip.GetString() ?? "" : "");
+                break;
         }
     }
 
@@ -510,7 +529,7 @@ internal sealed class ReceiverHost : IAsyncDisposable
                 pcName = Environment.MachineName,
                 ip = ResolveLocalIp(result.RemoteEndPoint.Address),
                 port = Port,
-                version = "4.0",
+                version = "4.1",
                 secure = true,
                 native = true,
                 fingerprint = Fingerprint
