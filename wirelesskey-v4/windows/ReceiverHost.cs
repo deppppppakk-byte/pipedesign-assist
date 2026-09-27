@@ -69,7 +69,7 @@ internal sealed class ReceiverHost : IAsyncDisposable
     public string PairingPayload => JsonSerializer.Serialize(new
     {
         type = "wirelesskey_pair",
-        version = "4.4",
+        version = "4.5",
         name = Environment.MachineName,
         ip = LocalIp,
         port = Port,
@@ -425,7 +425,7 @@ internal sealed class ReceiverHost : IAsyncDisposable
                 ok = true,
                 token = auth.Token,
                 pcName = Environment.MachineName,
-                version = "4.4",
+                version = "4.5",
                 secure = true,
                 native = true
             }, sendLock, context.RequestAborted);
@@ -750,7 +750,7 @@ internal sealed class ReceiverHost : IAsyncDisposable
                 pcName = Environment.MachineName,
                 ip = ResolveLocalIp(result.RemoteEndPoint.Address),
                 port = Port,
-                version = "4.4",
+                version = "4.5",
                 secure = true,
                 native = true,
                 fingerprint = Fingerprint
