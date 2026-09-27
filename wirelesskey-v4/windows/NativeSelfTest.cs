@@ -33,7 +33,7 @@ internal static class NativeSelfTest
             type = "auth",
             code = host.PairCode,
             device = "WirelessKey Native Self Test",
-            appVersion = "4.1"
+            appVersion = "4.1.1"
         });
         await ws.SendAsync(auth, WebSocketMessageType.Text, true, CancellationToken.None);
 
