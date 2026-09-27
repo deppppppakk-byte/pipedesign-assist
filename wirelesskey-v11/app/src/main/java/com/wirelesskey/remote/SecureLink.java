@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 
 import org.json.JSONObject;
 import org.json.JSONArray;
@@ -13,6 +14,8 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.security.MessageDigest;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -23,6 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
@@ -49,7 +53,24 @@ public final class SecureLink {
     private final SharedPreferences prefs;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService io = Executors.newCachedThreadPool();
+    private final ExecutorService pointerIo = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "WirelessKey-Pointer");
+        t.setPriority(Thread.MAX_PRIORITY);
+        return t;
+    });
     private final ConcurrentHashMap<String, String> discoveredFingerprints = new ConcurrentHashMap<>();
+
+    private final Object pointerLock = new Object();
+    private final AtomicBoolean pointerDrainScheduled = new AtomicBoolean(false);
+    private float pendingPointerDx;
+    private float pendingPointerDy;
+    private float pendingVScroll;
+    private float pendingHScroll;
+    private long newestPointerEventNanos;
+    private long coalescedPointerEvents;
+    private long droppedPointerEvents;
+    private static final long MAX_POINTER_AGE_NANOS = 55_000_000L;
+    private static final long MAX_POINTER_QUEUE_BYTES = 64 * 1024L;
 
     private Listener listener;
     private volatile WebSocket socket;
@@ -276,6 +297,7 @@ public final class SecureLink {
         shouldReconnect = false;
         main.removeCallbacks(reconnectTask);
         main.removeCallbacks(latencyTask);
+        clearPointerBacklog();
         closeSocket();
         postStatus("offline", "Disconnected");
     }
@@ -334,7 +356,7 @@ public final class SecureLink {
                     String token = prefs.getString(tokenKey(finalFingerprint), "");
                     if (!token.isEmpty()) auth.put("token", token);
                     auth.put("device", android.os.Build.MODEL == null ? "Android" : android.os.Build.MODEL);
-                    auth.put("appVersion", "4.1.3");
+                    auth.put("appVersion", "4.2");
                     ws.send(auth.toString());
                     postStatus("authenticating", "Authenticating...");
                 } catch (Exception e) {
@@ -433,6 +455,118 @@ public final class SecureLink {
             wrap.put("event", event);
             ws.send(wrap.toString());
         } catch (Exception ignored) {
+        }
+    }
+
+    public void sendPointerMove(float dx, float dy, long eventNanos) {
+        if (Math.abs(dx) + Math.abs(dy) < 0.001f) return;
+        synchronized (pointerLock) {
+            if (Math.abs(pendingPointerDx) + Math.abs(pendingPointerDy) > 0.001f) {
+                coalescedPointerEvents++;
+            }
+            pendingPointerDx += dx;
+            pendingPointerDy += dy;
+            newestPointerEventNanos = Math.max(newestPointerEventNanos, eventNanos);
+        }
+        schedulePointerDrain();
+    }
+
+    public void sendPointerScroll(boolean horizontal, float delta, long eventNanos) {
+        if (Math.abs(delta) < 0.001f) return;
+        synchronized (pointerLock) {
+            if (horizontal) pendingHScroll += delta;
+            else pendingVScroll += delta;
+            newestPointerEventNanos = Math.max(newestPointerEventNanos, eventNanos);
+        }
+        schedulePointerDrain();
+    }
+
+    public long getCoalescedPointerEvents() {
+        synchronized (pointerLock) { return coalescedPointerEvents; }
+    }
+
+    public long getDroppedPointerEvents() {
+        synchronized (pointerLock) { return droppedPointerEvents; }
+    }
+
+    private void schedulePointerDrain() {
+        if (!pointerDrainScheduled.compareAndSet(false, true)) return;
+        pointerIo.execute(this::drainPointerQueue);
+    }
+
+    private void drainPointerQueue() {
+        try {
+            while (true) {
+                final float dx;
+                final float dy;
+                final float vScroll;
+                final float hScroll;
+                final long eventNanos;
+
+                synchronized (pointerLock) {
+                    dx = pendingPointerDx;
+                    dy = pendingPointerDy;
+                    vScroll = pendingVScroll;
+                    hScroll = pendingHScroll;
+                    eventNanos = newestPointerEventNanos;
+                    pendingPointerDx = 0f;
+                    pendingPointerDy = 0f;
+                    pendingVScroll = 0f;
+                    pendingHScroll = 0f;
+                    newestPointerEventNanos = 0L;
+                }
+
+                if (Math.abs(dx) + Math.abs(dy) + Math.abs(vScroll) + Math.abs(hScroll) < 0.001f) {
+                    pointerDrainScheduled.set(false);
+                    synchronized (pointerLock) {
+                        if (Math.abs(pendingPointerDx) + Math.abs(pendingPointerDy)
+                                + Math.abs(pendingVScroll) + Math.abs(pendingHScroll) > 0.001f
+                                && pointerDrainScheduled.compareAndSet(false, true)) {
+                            continue;
+                        }
+                    }
+                    return;
+                }
+
+                WebSocket ws = socket;
+                if (!authenticated || ws == null) {
+                    synchronized (pointerLock) { droppedPointerEvents++; }
+                    continue;
+                }
+
+                long age = eventNanos == 0L ? 0L : SystemClock.elapsedRealtimeNanos() - eventNanos;
+                if (age > MAX_POINTER_AGE_NANOS || ws.queueSize() > MAX_POINTER_QUEUE_BYTES) {
+                    synchronized (pointerLock) { droppedPointerEvents++; }
+                    continue;
+                }
+
+                if (Math.abs(dx) + Math.abs(dy) > 0.001f) {
+                    sendPointerPacket(ws, (byte)1, dx, dy);
+                }
+                if (Math.abs(vScroll) > 0.001f) {
+                    sendPointerPacket(ws, (byte)2, vScroll, 0f);
+                }
+                if (Math.abs(hScroll) > 0.001f) {
+                    sendPointerPacket(ws, (byte)3, hScroll, 0f);
+                }
+            }
+        } catch (Exception ignored) {
+            pointerDrainScheduled.set(false);
+        }
+    }
+
+    private void sendPointerPacket(WebSocket ws, byte kind, float a, float b) {
+        ByteBuffer buf = ByteBuffer.allocate(9).order(ByteOrder.LITTLE_ENDIAN);
+        buf.put(kind);
+        buf.putFloat(a);
+        buf.putFloat(b);
+        ws.send(ByteString.of(buf.array()));
+    }
+
+    private void clearPointerBacklog() {
+        synchronized (pointerLock) {
+            pendingPointerDx = pendingPointerDy = pendingVScroll = pendingHScroll = 0f;
+            newestPointerEventNanos = 0L;
         }
     }
 
@@ -596,7 +730,9 @@ public final class SecureLink {
         shouldReconnect = false;
         main.removeCallbacks(reconnectTask);
         main.removeCallbacks(latencyTask);
+        clearPointerBacklog();
         closeSocket();
         io.shutdownNow();
+        pointerIo.shutdownNow();
     }
 }
