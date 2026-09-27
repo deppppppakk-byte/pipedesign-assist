@@ -1,10 +1,11 @@
-name: Temporary WirelessKey v4 Native Android
+name: Temporary WirelessKey v4 Native Build
 
 on:
   pull_request:
     branches: [ main ]
     paths:
       - 'wirelesskey-v11/**'
+      - 'wirelesskey-v4/**'
 
 jobs:
   android-native:
@@ -48,4 +49,46 @@ jobs:
         with:
           name: WirelessKey-v4.0-Native-Android
           path: wirelesskey-v11/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+  windows-native:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: wirelesskey-v4/windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore and build
+        run: dotnet build WirelessKeyReceiver.csproj -c Release
+      - name: Run native encrypted self-test
+        run: dotnet run --project WirelessKeyReceiver.csproj -c Release -- --self-test
+      - name: Publish self-contained native receiver
+        run: dotnet publish WirelessKeyReceiver.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish
+      - name: Test packaged EXE
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "$PWD\publish\WirelessKeyReceiver.exe" -ArgumentList "--self-test" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Native EXE self-test failed: $($p.ExitCode)" }
+      - name: Package native receiver
+        shell: pwsh
+        run: |
+          Copy-Item ../../wirelesskey-v11/receiver/ALLOW_FIREWALL_PRIVATE.bat publish/
+          Copy-Item ../../wirelesskey-v11/receiver/README.txt publish/README-v3.txt
+          @"
+          WIRELESSKEY 4.0 NATIVE RECEIVER
+          ================================
+          WirelessKey v4 uses a native .NET Windows receiver and native Android UI.
+          Run WirelessKeyReceiver.exe. The app stays in the system tray when closed.
+          If discovery is blocked, run ALLOW_FIREWALL_PRIVATE.bat as Administrator once.
+          "@ | Set-Content publish/README.txt
+          Compress-Archive -Path publish/* -DestinationPath WirelessKey-v4.0-Native-Windows.zip -Force
+          Expand-Archive WirelessKey-v4.0-Native-Windows.zip verify -Force
+          if (-not (Test-Path verify/WirelessKeyReceiver.exe)) { throw "Receiver missing from package" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WirelessKey-v4.0-Native-Windows
+          path: wirelesskey-v4/windows/WirelessKey-v4.0-Native-Windows.zip
           if-no-files-found: error
