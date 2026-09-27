@@ -321,7 +321,7 @@ public final class SecureLink {
                     String token = prefs.getString(tokenKey(finalFingerprint), "");
                     if (!token.isEmpty()) auth.put("token", token);
                     auth.put("device", android.os.Build.MODEL == null ? "Android" : android.os.Build.MODEL);
-                    auth.put("appVersion", "4.1");
+                    auth.put("appVersion", "4.1.1");
                     ws.send(auth.toString());
                     postStatus("authenticating", "Authenticating...");
                 } catch (Exception e) {
@@ -465,6 +465,90 @@ public final class SecureLink {
                 Listener l = listener;
                 if (l != null) main.post(l::onDiscoveryDone);
             }
+        });
+    }
+
+    public void connectPairingQr(String payload) {
+        final JSONObject qr;
+        try {
+            qr = importPairingQr(payload);
+        } catch (Exception e) {
+            postStatus("error", "Invalid WirelessKey QR");
+            return;
+        }
+
+        final String expectedFingerprint = qr.optString("fingerprint", "").trim().toLowerCase(Locale.US);
+        final String pairingCode = qr.optString("code", "").trim();
+        final String pcName = qr.optString("name", qr.optString("pcName", "WirelessKey PC"));
+        final String fallbackHost = normalizeHost(qr.optString("host", ""));
+
+        postStatus("discovering", "QR verified · locating PC...");
+
+        io.execute(() -> {
+            DatagramSocket ds = null;
+            String matchedHost = "";
+
+            try {
+                ds = new DatagramSocket();
+                ds.setBroadcast(true);
+                ds.setSoTimeout(350);
+
+                byte[] query = "WIRELESSKEY_DISCOVER_V4".getBytes(StandardCharsets.UTF_8);
+                DatagramPacket out = new DatagramPacket(
+                        query, query.length, InetAddress.getByName("255.255.255.255"), 8766);
+                ds.send(out);
+
+                long end = System.currentTimeMillis() + 2200;
+                byte[] buf = new byte[4096];
+
+                while (System.currentTimeMillis() < end && matchedHost.isEmpty()) {
+                    try {
+                        DatagramPacket in = new DatagramPacket(buf, buf.length);
+                        ds.receive(in);
+                        String response = new String(
+                                in.getData(), in.getOffset(), in.getLength(), StandardCharsets.UTF_8);
+                        JSONObject obj = new JSONObject(response);
+                        String fp = obj.optString("fingerprint", "").trim().toLowerCase(Locale.US);
+
+                        if (fp.equalsIgnoreCase(expectedFingerprint)) {
+                            String ip = obj.optString("ip", in.getAddress().getHostAddress());
+                            int port = obj.optInt("port", 8765);
+                            matchedHost = normalizeHost(ip + ":" + port);
+                            discoveredFingerprints.put(matchedHost, expectedFingerprint);
+                            prefs.edit().putString(certKey(matchedHost), expectedFingerprint).apply();
+                        }
+                    } catch (SocketTimeoutException ignored) {
+                    } catch (Exception ignored) {
+                    }
+                }
+            } catch (Exception ignored) {
+            } finally {
+                if (ds != null) ds.close();
+            }
+
+            final String targetHost = matchedHost.isEmpty() ? fallbackHost : matchedHost;
+            if (targetHost.isEmpty()) {
+                postStatus("error", "QR scanned, but PC address is unavailable");
+                return;
+            }
+
+            rememberPeer(pcName, targetHost, expectedFingerprint);
+            prefs.edit()
+                    .putString("host", targetHost)
+                    .putString("code", pairingCode)
+                    .apply();
+
+            currentHost = targetHost;
+            currentCode = pairingCode;
+            shouldReconnect = true;
+            reconnectAttempt = 0;
+
+            main.post(() -> {
+                postStatus("connecting", matchedHost.isEmpty()
+                        ? "Connecting using QR address..."
+                        : "PC located · secure connecting...");
+                connectSocket(true);
+            });
         });
     }
 
