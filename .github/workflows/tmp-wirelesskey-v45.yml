@@ -128,27 +128,70 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Installer compilation failed" }
           if (-not (Test-Path "installer-output\WirelessKeySetup.exe")) { throw "Installer output missing" }
 
+      - name: Firewall capability probe
+        id: firewallprobe
+        shell: pwsh
+        run: |
+          $probeName = "WirelessKey CI Firewall Probe"
+          $probeCapable = $false
+          try {
+            Get-NetFirewallRule -DisplayName $probeName -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
+            New-NetFirewallRule -DisplayName $probeName -Direction Inbound -Action Allow -Profile Private -Protocol TCP -LocalPort 48765 -Program "$PWD\publish\WirelessKeyReceiver.exe" -Enabled True | Out-Null
+            $probeCapable = [bool](Get-NetFirewallRule -DisplayName $probeName -ErrorAction SilentlyContinue)
+          } catch {
+            Write-Host "Firewall probe failed: $($_.Exception.Message)"
+          } finally {
+            Get-NetFirewallRule -DisplayName $probeName -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
+          }
+          "FIREWALL_CAPABLE=$($probeCapable.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "Firewall capability: $probeCapable"
+
       - name: Silent installer lifecycle test
         shell: pwsh
         run: |
           $installDir = Join-Path $env:TEMP "WirelessKey-v45-install-test"
+          $setupLog = Join-Path $env:TEMP "WirelessKeySetup-v45.log"
+          $fwLog = Join-Path $env:TEMP "wirelesskey-firewall-install.log"
           Remove-Item $installDir -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item $setupLog,$fwLog -Force -ErrorAction SilentlyContinue
           $setup = (Resolve-Path "installer-output\WirelessKeySetup.exe").Path
-          $install = Start-Process -FilePath $setup -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$installDir" -Wait -PassThru
-          if ($install.ExitCode -ne 0) { throw "Silent installer failed: $($install.ExitCode)" }
+          $install = Start-Process -FilePath $setup -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$installDir","/LOG=$setupLog" -Wait -PassThru
+          if ($install.ExitCode -ne 0) {
+            if (Test-Path $setupLog) { Get-Content $setupLog }
+            if (Test-Path $fwLog) { Get-Content $fwLog }
+            throw "Silent installer failed: $($install.ExitCode)"
+          }
           $installedExe = Join-Path $installDir "WirelessKeyReceiver.exe"
           if (-not (Test-Path $installedExe)) { throw "Installed receiver missing" }
           $test = Start-Process -FilePath $installedExe -ArgumentList "--self-test" -Wait -PassThru
           if ($test.ExitCode -ne 0) { throw "Installed receiver self-test failed: $($test.ExitCode)" }
-          if (-not (Get-NetFirewallRule -DisplayName "WirelessKey Receiver TCP" -ErrorAction SilentlyContinue)) { throw "TCP firewall rule missing after install" }
-          if (-not (Get-NetFirewallRule -DisplayName "WirelessKey Discovery UDP" -ErrorAction SilentlyContinue)) { throw "UDP firewall rule missing after install" }
+
+          $tcpRule = Get-NetFirewallRule -DisplayName "WirelessKey Receiver TCP" -ErrorAction SilentlyContinue
+          $udpRule = Get-NetFirewallRule -DisplayName "WirelessKey Discovery UDP" -ErrorAction SilentlyContinue
+          if ($env:FIREWALL_CAPABLE -eq "true") {
+            if (-not $tcpRule -or -not $udpRule) {
+              if (Test-Path $setupLog) { Get-Content $setupLog }
+              if (Test-Path $fwLog) { Get-Content $fwLog }
+              throw "Firewall-capable runner did not receive WirelessKey firewall rules"
+            }
+          } else {
+            Write-Host "Runner cannot create firewall rules; validating installer/helper packaging instead."
+            if (-not (Test-Path (Join-Path $installDir "support\install-firewall.ps1"))) { throw "Installed firewall helper missing" }
+            if (-not (Test-Path (Join-Path $installDir "support\remove-firewall.ps1"))) { throw "Installed firewall cleanup helper missing" }
+            if (Test-Path $fwLog) { Get-Content $fwLog }
+          }
+
           $uninstaller = Get-ChildItem $installDir -Filter "unins*.exe" | Select-Object -First 1
           if (-not $uninstaller) { throw "Uninstaller missing" }
           $uninstall = Start-Process -FilePath $uninstaller.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait -PassThru
           if ($uninstall.ExitCode -ne 0) { throw "Silent uninstall failed: $($uninstall.ExitCode)" }
           Start-Sleep -Seconds 2
-          if (Get-NetFirewallRule -DisplayName "WirelessKey Receiver TCP" -ErrorAction SilentlyContinue) { throw "TCP firewall rule remained after uninstall" }
-          if (Get-NetFirewallRule -DisplayName "WirelessKey Discovery UDP" -ErrorAction SilentlyContinue) { throw "UDP firewall rule remained after uninstall" }
+
+          if ($env:FIREWALL_CAPABLE -eq "true") {
+            if (Get-NetFirewallRule -DisplayName "WirelessKey Receiver TCP" -ErrorAction SilentlyContinue) { throw "TCP firewall rule remained after uninstall" }
+            if (Get-NetFirewallRule -DisplayName "WirelessKey Discovery UDP" -ErrorAction SilentlyContinue) { throw "UDP firewall rule remained after uninstall" }
+          }
+          if (Test-Path $installedExe) { throw "Installed receiver remained after uninstall" }
 
       - name: Package portable receiver
         shell: pwsh
