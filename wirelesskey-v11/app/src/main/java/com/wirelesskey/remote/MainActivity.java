@@ -94,6 +94,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     private SharedPreferences uiPrefs;
     private float pointerSensitivity = 1.18f;
     private float scrollSpeed = 1.0f;
+    private float pointerAcceleration = 0.032f;
     private boolean precisionMode = false;
     private boolean naturalScroll = false;
     private String pointerPreset = "custom";
@@ -140,6 +141,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         uiPrefs = getSharedPreferences("wirelesskey_ui", MODE_PRIVATE);
         pointerSensitivity = uiPrefs.getFloat("pointer_sensitivity", 1.18f);
         scrollSpeed = uiPrefs.getFloat("scroll_speed", 1.0f);
+        pointerAcceleration = uiPrefs.getFloat("pointer_acceleration", 0.032f);
         precisionMode = uiPrefs.getBoolean("precision_mode", false);
         naturalScroll = uiPrefs.getBoolean("natural_scroll", false);
         pointerPreset = uiPrefs.getString("pointer_preset", "custom");
@@ -810,8 +812,46 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         if(activeTouchpad==null)return;
         activeTouchpad.setSensitivity(pointerSensitivity);
         activeTouchpad.setScrollSpeed(scrollSpeed);
+        activeTouchpad.setAcceleration(pointerAcceleration);
         activeTouchpad.setPrecisionMode(precisionMode);
         activeTouchpad.setNaturalScroll(naturalScroll);
+    }
+
+    private void applyPointerPreset(String preset){
+        String p=preset==null?"balanced":preset.toLowerCase(java.util.Locale.US);
+        pointerPreset=p;
+
+        if("precision".equals(p)){
+            pointerSensitivity=0.82f;
+            pointerAcceleration=0.010f;
+            scrollSpeed=0.82f;
+            precisionMode=true;
+        }else if("fast".equals(p)){
+            pointerSensitivity=1.55f;
+            pointerAcceleration=0.052f;
+            scrollSpeed=1.25f;
+            precisionMode=false;
+        }else{
+            pointerPreset="balanced";
+            pointerSensitivity=1.18f;
+            pointerAcceleration=0.032f;
+            scrollSpeed=1.0f;
+            precisionMode=false;
+        }
+
+        uiPrefs.edit()
+                .putString("pointer_preset",pointerPreset)
+                .putFloat("pointer_sensitivity",pointerSensitivity)
+                .putFloat("pointer_acceleration",pointerAcceleration)
+                .putFloat("scroll_speed",scrollSpeed)
+                .putBoolean("precision_mode",precisionMode)
+                .apply();
+        applyTouchpadSettings();
+    }
+
+    private void applyLayoutPreset(float ratio){
+        if(activeSplit==null)return;
+        activeSplit.setRatio(ratio);
     }
 
     private void showManualPairDialog(){
@@ -1156,6 +1196,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         activeTouchpad=pad;
         pad.setSensitivity(pointerSensitivity);
         pad.setScrollSpeed(scrollSpeed);
+        pad.setAcceleration(pointerAcceleration);
         pad.setNaturalScroll(naturalScroll);
         pad.setPrecisionMode(forcePrecision||precisionMode);
         pad.setSender(new TouchpadView.Sender() {
