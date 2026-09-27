@@ -16,7 +16,8 @@ using Microsoft.Extensions.Hosting;
 namespace WirelessKey.NativeReceiver;
 
 internal sealed record TrustedDevice(string Device, long Created, long LastSeen);
-internal sealed record ConnectedDevice(Guid Id, string Device, string Ip, DateTimeOffset Since);
+internal sealed record TrustedDeviceInfo(string Token, string Device, long Created, long LastSeen, bool Connected);
+internal sealed record ConnectedDevice(Guid Id, string Device, string Ip, DateTimeOffset Since, string Token);
 
 internal sealed class ReceiverHost : IAsyncDisposable
 {
@@ -32,6 +33,7 @@ internal sealed class ReceiverHost : IAsyncDisposable
 
     private Dictionary<string, TrustedDevice> _trusted = new();
     private readonly ConcurrentDictionary<Guid, ConnectedDevice> _connected = new();
+    private readonly ConcurrentDictionary<Guid, WebSocket> _sessions = new();
     private readonly ConcurrentDictionary<string, ConcurrentQueue<DateTimeOffset>> _failures = new();
     private CancellationTokenSource? _cts;
     private WebApplication? _app;
@@ -50,7 +52,7 @@ internal sealed class ReceiverHost : IAsyncDisposable
     public string PairingPayload => JsonSerializer.Serialize(new
     {
         type = "wirelesskey_pair",
-        version = "4.3",
+        version = "4.4",
         name = Environment.MachineName,
         ip = LocalIp,
         port = Port,
@@ -58,6 +60,25 @@ internal sealed class ReceiverHost : IAsyncDisposable
         code = PairCode
     });
     public IReadOnlyCollection<ConnectedDevice> ConnectedDevices => _connected.Values.ToArray();
+
+    public IReadOnlyCollection<TrustedDeviceInfo> TrustedDevices
+    {
+        get
+        {
+            lock (_stateGate)
+            {
+                var connectedTokens = _connected.Values.Select(x => x.Token).ToHashSet(StringComparer.Ordinal);
+                return _trusted.Select(kvp => new TrustedDeviceInfo(
+                    kvp.Key,
+                    kvp.Value.Device,
+                    kvp.Value.Created,
+                    kvp.Value.LastSeen,
+                    connectedTokens.Contains(kvp.Key)))
+                    .OrderByDescending(x => x.LastSeen)
+                    .ToArray();
+            }
+        }
+    }
 
     public ReceiverHost()
     {
@@ -81,12 +102,77 @@ internal sealed class ReceiverHost : IAsyncDisposable
 
     public void RevokeAll()
     {
+        string[] tokens;
         lock (_stateGate)
         {
+            tokens = _trusted.Keys.ToArray();
             _trusted.Clear();
             SaveTrusted();
         }
+        foreach (var token in tokens) DisconnectTrustedSessions(token);
         StateChanged?.Invoke();
+    }
+
+    public bool RevokeTrusted(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return false;
+        bool removed;
+        lock (_stateGate)
+        {
+            removed = _trusted.Remove(token);
+            if (removed) SaveTrusted();
+        }
+        if (removed)
+        {
+            DisconnectTrustedSessions(token);
+            StateChanged?.Invoke();
+        }
+        return removed;
+    }
+
+    public bool RenameTrusted(string token, string newName)
+    {
+        var name = (newName ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(name)) return false;
+
+        lock (_stateGate)
+        {
+            if (!_trusted.TryGetValue(token, out var known)) return false;
+            _trusted[token] = known with { Device = name };
+            SaveTrusted();
+        }
+
+        foreach (var entry in _connected.ToArray())
+        {
+            if (entry.Value.Token == token)
+                _connected[entry.Key] = entry.Value with { Device = name };
+        }
+
+        StateChanged?.Invoke();
+        return true;
+    }
+
+    private void DisconnectTrustedSessions(string token)
+    {
+        foreach (var entry in _connected.ToArray())
+        {
+            if (entry.Value.Token != token) continue;
+            if (_sessions.TryGetValue(entry.Key, out var ws))
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        if (ws.State == WebSocketState.Open)
+                            await ws.CloseAsync(
+                                WebSocketCloseStatus.PolicyViolation,
+                                "Device trust revoked",
+                                CancellationToken.None);
+                    }
+                    catch { }
+                });
+            }
+        }
     }
 
     private string EnsurePairCode()
@@ -284,7 +370,8 @@ internal sealed class ReceiverHost : IAsyncDisposable
                 return;
             }
 
-            _connected[id] = new ConnectedDevice(id, deviceName, clientIp, DateTimeOffset.Now);
+            _connected[id] = new ConnectedDevice(id, deviceName, clientIp, DateTimeOffset.Now, auth.Token);
+            _sessions[id] = ws;
             StateChanged?.Invoke();
 
             await SendJsonAsync(ws, new
@@ -293,7 +380,7 @@ internal sealed class ReceiverHost : IAsyncDisposable
                 ok = true,
                 token = auth.Token,
                 pcName = Environment.MachineName,
-                version = "4.3",
+                version = "4.4",
                 secure = true,
                 native = true
             }, sendLock, context.RequestAborted);
@@ -364,6 +451,7 @@ internal sealed class ReceiverHost : IAsyncDisposable
                 try { await contextTask; } catch { }
             }
             _connected.TryRemove(id, out _);
+            _sessions.TryRemove(id, out _);
             InputInjector.ResetPointerRemainders();
             StateChanged?.Invoke();
         }
@@ -586,7 +674,7 @@ internal sealed class ReceiverHost : IAsyncDisposable
                 pcName = Environment.MachineName,
                 ip = ResolveLocalIp(result.RemoteEndPoint.Address),
                 port = Port,
-                version = "4.3",
+                version = "4.4",
                 secure = true,
                 native = true,
                 fingerprint = Fingerprint
