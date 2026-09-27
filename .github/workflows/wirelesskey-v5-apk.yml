@@ -68,8 +68,8 @@ jobs:
           APK=wirelesskey-v5/android/app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
           /usr/local/lib/android/sdk/build-tools/35.0.0/aapt dump badging "$APK" | tee apk-badging.txt
-          grep -q "package: name='in.tamishra.wirelesskey.debug'" apk-badging.txt
-          grep -q "versionName='5.1.0-debug'" apk-badging.txt
+          grep -q "package: name='in.tamishra.wirelesskey'" apk-badging.txt
+          grep -q "versionCode='51000' versionName='5.1.0'" apk-badging.txt
           cp "$APK" WirelessKey-v5.1.0-QC.apk
           sha256sum WirelessKey-v5.1.0-QC.apk > WirelessKey-v5.1.0-QC.apk.sha256
 
