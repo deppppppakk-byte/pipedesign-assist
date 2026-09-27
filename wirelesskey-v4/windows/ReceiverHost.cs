@@ -50,7 +50,7 @@ internal sealed class ReceiverHost : IAsyncDisposable
     public string PairingPayload => JsonSerializer.Serialize(new
     {
         type = "wirelesskey_pair",
-        version = "4.1.1",
+        version = "4.2",
         name = Environment.MachineName,
         ip = LocalIp,
         port = Port,
@@ -293,7 +293,7 @@ internal sealed class ReceiverHost : IAsyncDisposable
                 ok = true,
                 token = auth.Token,
                 pcName = Environment.MachineName,
-                version = "4.1.1",
+                version = "4.2",
                 secure = true,
                 native = true
             }, sendLock, context.RequestAborted);
@@ -303,10 +303,19 @@ internal sealed class ReceiverHost : IAsyncDisposable
 
             while (ws.State == WebSocketState.Open && !context.RequestAborted.IsCancellationRequested)
             {
-                var text = await ReceiveTextAsync(ws, context.RequestAborted);
-                if (text == null) break;
+                var packet = await ReceivePacketAsync(ws, context.RequestAborted);
+                if (packet == null) break;
 
-                using var doc = JsonDocument.Parse(text);
+                if (packet.Value.Type == WebSocketMessageType.Binary)
+                {
+                    ProcessPointerPacket(packet.Value.Data);
+                    continue;
+                }
+
+                if (packet.Value.Type != WebSocketMessageType.Text)
+                    continue;
+
+                using var doc = JsonDocument.Parse(packet.Value.Data);
                 var obj = doc.RootElement;
                 var messageType = obj.TryGetProperty("type", out var mt) ? mt.GetString() : null;
 
@@ -407,6 +416,54 @@ internal sealed class ReceiverHost : IAsyncDisposable
 
     private void MarkFailed(string ip)
         => _failures.GetOrAdd(ip, _ => new ConcurrentQueue<DateTimeOffset>()).Enqueue(DateTimeOffset.UtcNow);
+
+    private readonly record struct ReceivedPacket(WebSocketMessageType Type, byte[] Data);
+
+    private static async Task<ReceivedPacket?> ReceivePacketAsync(WebSocket ws, CancellationToken ct)
+    {
+        var buffer = new byte[8192];
+        using var ms = new MemoryStream();
+        WebSocketMessageType? messageType = null;
+
+        while (true)
+        {
+            var result = await ws.ReceiveAsync(buffer, ct);
+            if (result.MessageType == WebSocketMessageType.Close) return null;
+
+            messageType ??= result.MessageType;
+            if (result.MessageType != messageType.Value)
+                throw new InvalidDataException("Mixed WebSocket message fragments.");
+
+            ms.Write(buffer, 0, result.Count);
+            if (ms.Length > 1_048_576)
+                throw new InvalidDataException("Message too large.");
+
+            if (result.EndOfMessage)
+                return new ReceivedPacket(messageType.Value, ms.ToArray());
+        }
+    }
+
+    private static void ProcessPointerPacket(byte[] data)
+    {
+        if (data == null || data.Length != 9) return;
+
+        var kind = data[0];
+        var a = BitConverter.ToSingle(data, 1);
+        var b = BitConverter.ToSingle(data, 5);
+
+        switch (kind)
+        {
+            case 1:
+                InputInjector.Move(a, b);
+                break;
+            case 2:
+                InputInjector.Wheel((int)Math.Round(a));
+                break;
+            case 3:
+                InputInjector.HWheel((int)Math.Round(a));
+                break;
+        }
+    }
 
     private static async Task<string?> ReceiveTextAsync(WebSocket ws, CancellationToken ct)
     {
@@ -528,7 +585,7 @@ internal sealed class ReceiverHost : IAsyncDisposable
                 pcName = Environment.MachineName,
                 ip = ResolveLocalIp(result.RemoteEndPoint.Address),
                 port = Port,
-                version = "4.1.1",
+                version = "4.2",
                 secure = true,
                 native = true,
                 fingerprint = Fingerprint
