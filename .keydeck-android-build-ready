@@ -1,0 +1,4 @@
+KeyDeck Android v1.3.0 build
+source_sha256=b09e54c0d72955e284426b4e7a0fd000947fb9a7827c9b1b3a9228f87e7ba96f
+focus=android-only
+receiver_compatibility=protocol-5
