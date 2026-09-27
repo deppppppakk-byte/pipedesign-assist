@@ -1156,34 +1156,55 @@ public class MainActivity extends Activity implements SecureLink.Listener {
                 LinearLayout.LayoutParams.MATCH_PARENT,0,1f));
 
         LinearLayout buttons=row();
-        Button left=button("Left click",8.4f),right=button("Right click",8.4f);
-        left.setBackground(stateBg(Color.rgb(24,29,36),Color.rgb(42,49,59),8,0));
-        right.setBackground(stateBg(Color.rgb(24,29,36),Color.rgb(42,49,59),8,0));
+        Button left=button("Primary",8f),right=button("Secondary",8f);
+        for(Button b:new Button[]{left,right}){
+            b.setElevation(0);
+            b.setTextColor(Color.rgb(149,160,174));
+            b.setBackground(stateBg(
+                    Color.rgb(20,24,30),
+                    Color.rgb(34,40,49),
+                    10,0));
+        }
         left.setOnClickListener(v->{haptic();sendMouse("left","click");});
         right.setOnClickListener(v->{haptic();sendMouse("right","click");});
-        buttons.addView(left,new LinearLayout.LayoutParams(0,dp(29),1f));
-        LinearLayout.LayoutParams rightLp=new LinearLayout.LayoutParams(0,dp(29),1f);
-        rightLp.leftMargin=dp(4);
+        buttons.addView(left,new LinearLayout.LayoutParams(0,dp(27),1f));
+        LinearLayout.LayoutParams rightLp=new LinearLayout.LayoutParams(0,dp(27),1f);
+        rightLp.leftMargin=dp(5);
         buttons.addView(right,rightLp);
         LinearLayout.LayoutParams blp=new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,dp(29));
-        blp.topMargin=dp(4);
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(27));
+        blp.topMargin=dp(5);
         p.addView(buttons,blp);
         return p;
     }
 
     private View buildNumpad(){
-        LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout root=card(14);
+        root.addView(eyebrow("NUMPAD"),new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(18)));
+
         String[][] rows={{"7","8","9","/"},{"4","5","6","*"},{"1","2","3","-"},{"0",".","Enter","+"},{"Home","End","PgUp","PgDn"}};
         for(String[] rr:rows){
             LinearLayout row=row();
             for(String x:rr){
-                Button b=button(x,10);
+                Button b=button(x,9.4f);
+                b.setElevation(0);
+                if("Enter".equals(x)||"+".equals(x)){
+                    b.setBackground(stateBg(
+                            Color.rgb(31,48,68),
+                            Color.rgb(43,66,91),
+                            9,0));
+                }
                 b.setOnClickListener(v->{haptic();handleNumpad(x);});
-                row.addView(b,new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f));
+                LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(
+                        0,LinearLayout.LayoutParams.MATCH_PARENT,1f);
+                bp.rightMargin=dp(2);
+                row.addView(b,bp);
             }
-            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,0,1f);
-            lp.bottomMargin=dp(3);root.addView(row,lp);
+            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,0,1f);
+            lp.bottomMargin=dp(3);
+            root.addView(row,lp);
         }
         return root;
     }
@@ -1199,18 +1220,34 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     }
 
     private View buildMediaPanel(){
-        LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
-        String[][] rows={{"Prev","Play/Pause","Next"},{"Mute","Vol −","Vol +"},{"Home","PgUp","PgDn"}};
+        LinearLayout root=card(14);
+        root.addView(eyebrow("MEDIA & PRESENTATION"),new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(18)));
+
+        String[][] rows={{"Previous","Play / Pause","Next"},{"Mute","Volume −","Volume +"},{"Home","Page Up","Page Down"}};
         String[][] keys={{"MEDIA_PREV","MEDIA_PLAY","MEDIA_NEXT"},{"VOLUME_MUTE","VOLUME_DOWN","VOLUME_UP"},{"HOME","PAGEUP","PAGEDOWN"}};
         for(int r=0;r<rows.length;r++){
             LinearLayout row=row();
             for(int i=0;i<rows[r].length;i++){
                 final String key=keys[r][i];
-                Button b=button(rows[r][i],9);b.setOnClickListener(v->{haptic();sendKey(key,new ArrayList<>());});
-                row.addView(b,new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f));
+                Button b=button(rows[r][i],8.4f);
+                b.setElevation(0);
+                if("MEDIA_PLAY".equals(key)){
+                    b.setBackground(stateBg(
+                            ACCENT_SOFT,
+                            Color.rgb(43,79,126),
+                            9,0));
+                }
+                b.setOnClickListener(v->{haptic();sendKey(key,new ArrayList<>());});
+                LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(
+                        0,LinearLayout.LayoutParams.MATCH_PARENT,1f);
+                bp.rightMargin=dp(3);
+                row.addView(b,bp);
             }
-            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,0,1f);
-            lp.bottomMargin=dp(3);root.addView(row,lp);
+            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,0,1f);
+            lp.bottomMargin=dp(3);
+            root.addView(row,lp);
         }
         return root;
     }
