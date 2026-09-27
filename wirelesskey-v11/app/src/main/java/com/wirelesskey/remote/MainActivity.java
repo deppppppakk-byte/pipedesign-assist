@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -23,6 +24,10 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.PopupWindow;
+import android.widget.ScrollView;
+import android.widget.SeekBar;
+import android.widget.HorizontalScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
 
@@ -40,14 +45,14 @@ import java.util.Set;
 
 
 public class MainActivity extends Activity implements SecureLink.Listener {
-    private static final int BG = Color.rgb(8,17,31);
-    private static final int PANEL = Color.rgb(15,26,43);
-    private static final int KEY = Color.rgb(31,45,65);
-    private static final int KEY_ACTIVE = Color.rgb(22,54,91);
-    private static final int BORDER = Color.rgb(53,74,101);
-    private static final int TEXT = Color.rgb(248,250,252);
-    private static final int MUTED = Color.rgb(144,162,187);
-    private static final int ACCENT = Color.rgb(37,99,235);
+    private static final int BG = Color.rgb(10,12,17);
+    private static final int PANEL = Color.rgb(20,24,31);
+    private static final int KEY = Color.rgb(31,36,45);
+    private static final int KEY_ACTIVE = Color.rgb(31,63,96);
+    private static final int BORDER = Color.rgb(48,55,66);
+    private static final int TEXT = Color.rgb(246,248,251);
+    private static final int MUTED = Color.rgb(143,153,168);
+    private static final int ACCENT = Color.rgb(49,112,246);
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private SecureLink link;
@@ -61,6 +66,8 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     private final List<String> deviceHosts = new ArrayList<>();
 
     private FrameLayout sideContent;
+    private FrameLayout workspaceHost;
+    private View appRoot;
     private Button mouseTab, numTab, mediaTab, shortcutTab, clipboardTab;
     private LinearLayout shortcutGrid, macroGrid;
     private EditText clipboardPreview;
@@ -74,6 +81,13 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     private final List<KeyBinding> printableBindings = new ArrayList<>();
     private final Map<String, List<Button>> modifierButtons = new HashMap<>();
     private String currentProfile = "standard";
+    private String currentWorkspace = "deck";
+    private SharedPreferences uiPrefs;
+    private float pointerSensitivity = 1.18f;
+    private float scrollSpeed = 1.0f;
+    private boolean precisionMode = false;
+    private boolean naturalScroll = false;
+    private TouchpadView activeTouchpad;
 
     private static final class KeySpec {
         final String key;
@@ -112,8 +126,15 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         haptics = link.loadHaptics();
         macroStore = new MacroStore(this);
         macros = macroStore.load();
+        uiPrefs = getSharedPreferences("wirelesskey_ui", MODE_PRIVATE);
+        pointerSensitivity = uiPrefs.getFloat("pointer_sensitivity", 1.18f);
+        scrollSpeed = uiPrefs.getFloat("scroll_speed", 1.0f);
+        precisionMode = uiPrefs.getBoolean("precision_mode", false);
+        naturalScroll = uiPrefs.getBoolean("natural_scroll", false);
+        currentWorkspace = uiPrefs.getString("workspace", "deck");
 
-        setContentView(buildUi());
+        appRoot = buildUi();
+        setContentView(appRoot);
         reloadKnownPeersIntoSpinner();
     }
 
@@ -182,214 +203,88 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
-        root.setPadding(dp(5),dp(4),dp(5),dp(4));
+        root.setPadding(dp(4),dp(3),dp(4),dp(3));
 
         root.addView(buildTopBar(), new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(38)));
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(34)));
 
-        LinearLayout workspace = new LinearLayout(this);
-        workspace.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout.LayoutParams workLp = new LinearLayout.LayoutParams(
+        workspaceHost = new FrameLayout(this);
+        LinearLayout.LayoutParams hostLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-        workLp.topMargin = dp(4);
-        root.addView(workspace, workLp);
+        hostLp.topMargin = dp(4);
+        root.addView(workspaceHost, hostLp);
 
-        LinearLayout keyboardPanel = buildKeyboard();
-        LinearLayout.LayoutParams keyLp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 3.2f);
-        workspace.addView(keyboardPanel, keyLp);
+        root.addView(buildWorkspaceRail(), new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(33)));
 
-        LinearLayout side = buildSidePanel();
-        LinearLayout.LayoutParams sideLp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1.15f);
-        sideLp.leftMargin=dp(4);
-        workspace.addView(side, sideLp);
-
+        handler.post(() -> showWorkspace(currentWorkspace));
         return root;
     }
 
     private View buildTopBar() {
-        final boolean compact = getResources().getConfiguration().screenWidthDp < 780;
-
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setPadding(dp(6),dp(3),dp(6),dp(3));
-        bar.setBackground(bg(PANEL,11,Color.rgb(29,43,64)));
-        bar.setElevation(dp(1.5f));
+        bar.setPadding(dp(8),dp(2),dp(6),dp(2));
+        bar.setBackground(bg(PANEL,11,Color.rgb(34,39,48)));
+        bar.setElevation(dp(1));
 
-        TextView brand = textView("WirelessKey 4.1.3", compact?10.5f:12f, TEXT, true);
-        brand.setGravity(Gravity.CENTER_VERTICAL);
-        bar.addView(brand, new LinearLayout.LayoutParams(dp(compact?94:118), LinearLayout.LayoutParams.MATCH_PARENT));
+        TextView brand = textView("WirelessKey", 11.5f, TEXT, true);
+        bar.addView(brand,new LinearLayout.LayoutParams(dp(92),LinearLayout.LayoutParams.MATCH_PARENT));
 
-        deviceSpinner = new Spinner(this);
-        deviceAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, new ArrayList<String>()) {
-            private TextView style(TextView t, boolean dropdown) {
-                t.setTextColor(TEXT);
-                t.setTextSize(dropdown?10:9);
-                t.setPadding(dp(8),0,dp(8),0);
-                t.setGravity(Gravity.CENTER_VERTICAL);
-                if(dropdown) t.setBackgroundColor(PANEL);
-                return t;
-            }
-            @Override
-            public View getView(int position, View convertView, android.view.ViewGroup parent) {
-                return style((TextView)super.getView(position,convertView,parent),false);
-            }
-            @Override
-            public View getDropDownView(int position, View convertView, android.view.ViewGroup parent) {
-                return style((TextView)super.getDropDownView(position,convertView,parent),true);
-            }
-        };
-        deviceAdapter.add("Remembered PCs");
-        deviceSpinner.setAdapter(deviceAdapter);
-        deviceSpinner.setBackground(bg(Color.rgb(9,19,33),8,BORDER));
-        deviceSpinner.setPopupBackgroundDrawable(bg(PANEL,7,BORDER));
-        deviceSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
-            @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
-                if (position > 0 && position-1 < deviceHosts.size()) {
-                    hostInput.setText(deviceHosts.get(position-1));
-                    codeInput.setText("");
-                }
-            }
-        });
-        LinearLayout.LayoutParams spinnerLp = new LinearLayout.LayoutParams(dp(compact?118:160), dp(30));
-        spinnerLp.leftMargin=dp(3);
-        bar.addView(deviceSpinner, spinnerLp);
+        statusText=textView("Offline",8.2f,MUTED,true);
+        statusText.setGravity(Gravity.CENTER);
+        statusText.setMaxLines(1);
+        statusText.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        statusText.setBackground(bg(Color.rgb(25,30,38),18,0));
+        LinearLayout.LayoutParams statusLp=new LinearLayout.LayoutParams(0,dp(25),1f);
+        statusLp.leftMargin=dp(4);
+        bar.addView(statusText,statusLp);
 
-        Button find = button(compact?"Find":"Find PC", 8.5f);
-        find.setOnClickListener(v -> {
-            haptic();
-            deviceHosts.clear();
-            deviceAdapter.clear();
-            deviceAdapter.add("Searching...");
-            deviceAdapter.notifyDataSetChanged();
-            link.discover();
-            onStatus("discovering","Finding PCs...");
-        });
-        LinearLayout.LayoutParams findLp=new LinearLayout.LayoutParams(dp(compact?48:62),dp(30));
-        findLp.leftMargin=dp(3);
-        bar.addView(find,findLp);
+        appText=textView("Desktop",8.2f,Color.rgb(200,210,224),true);
+        appText.setGravity(Gravity.CENTER);
+        appText.setMaxLines(1);
+        appText.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams appLp=new LinearLayout.LayoutParams(dp(88),dp(25));
+        appLp.leftMargin=dp(4);
+        bar.addView(appText,appLp);
 
-        Button qr = button("QR", 9);
-        qr.setBackground(stateBg(Color.rgb(6,95,70),Color.rgb(5,122,85),7,Color.rgb(16,185,129)));
-        qr.setOnClickListener(v -> { haptic(); startQrScan(); });
-        LinearLayout.LayoutParams qrLp = new LinearLayout.LayoutParams(dp(44), dp(30));
-        qrLp.leftMargin = dp(3);
-        bar.addView(qr, qrLp);
+        latencyText=textView("— ms",8,Color.rgb(115,193,255),true);
+        latencyText.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams latLp=new LinearLayout.LayoutParams(dp(50),dp(25));
+        latLp.leftMargin=dp(2);
+        bar.addView(latencyText,latLp);
 
+        Button control=button("•••",10);
+        control.setBackground(stateBg(Color.rgb(27,33,42),Color.rgb(43,51,63),9,0));
+        control.setOnClickListener(v->{haptic();showControlCenter(v);});
+        LinearLayout.LayoutParams controlLp=new LinearLayout.LayoutParams(dp(44),dp(27));
+        controlLp.leftMargin=dp(4);
+        bar.addView(control,controlLp);
+
+        // Hidden connection state used by pairing dialogs and remembered PCs.
         hostInput = new EditText(this);
         hostInput.setText(link.loadHost());
         codeInput = new EditText(this);
         codeInput.setText(link.loadCode());
 
-        Button manual = button(compact?"IP":"Manual",8);
-        manual.setOnClickListener(v->{haptic();showManualPairDialog();});
-        LinearLayout.LayoutParams manLp=new LinearLayout.LayoutParams(dp(compact?42:58),dp(30));
-        manLp.leftMargin=dp(3);
-        bar.addView(manual,manLp);
-
-        connectButton = button("Connect",8.5f);
-        connectButton.setBackground(stateBg(ACCENT,Color.rgb(29,78,216),7,Color.rgb(59,130,246)));
-        connectButton.setOnClickListener(v -> {
-            haptic();
-            String host=hostInput.getText().toString().trim();
-            String code=codeInput.getText().toString().trim();
-            if (host.isEmpty()) {
-                showManualPairDialog();
-                return;
+        deviceSpinner = new Spinner(this);
+        deviceAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, new ArrayList<String>());
+        deviceAdapter.add("Remembered PCs");
+        deviceSpinner.setAdapter(deviceAdapter);
+        deviceSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                if(position>0 && position-1<deviceHosts.size()){
+                    hostInput.setText(deviceHosts.get(position-1));
+                    codeInput.setText("");
+                }
             }
-            if (code.isEmpty() && !link.hasTrustedTokenForHost(host)) {
-                onStatus("offline","Pairing code required for this PC");
-                showManualPairDialog();
-                return;
-            }
-            link.connect(host,code);
         });
-        LinearLayout.LayoutParams conLp = new LinearLayout.LayoutParams(dp(compact?60:70),dp(30));
-        conLp.leftMargin=dp(3);
-        bar.addView(connectButton,conLp);
 
-        hapticButton = button(compact?"Hap":"Haptic",8);
-        updateHapticButtonStyle();
-        hapticButton.setOnClickListener(v -> {
-            haptics=!haptics;
-            link.setHaptics(haptics);
-            updateHapticButtonStyle();
-            if (haptics) v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-        });
-        LinearLayout.LayoutParams hapLp = new LinearLayout.LayoutParams(dp(compact?42:56),dp(30));
-        hapLp.leftMargin=dp(3);
-        bar.addView(hapticButton,hapLp);
-
-        LinearLayout context = new LinearLayout(this);
-        context.setOrientation(LinearLayout.HORIZONTAL);
-        context.setGravity(Gravity.CENTER_VERTICAL);
-        context.setPadding(dp(7),0,dp(7),0);
-        context.setBackground(bg(Color.rgb(12,23,40),20,Color.rgb(43,65,94)));
-        appText=textView("Desktop",8,Color.rgb(219,234,254),true);
-        appText.setMaxLines(1);
-        appText.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        latencyText=textView("— ms",7.5f,Color.rgb(125,211,252),false);
-        latencyText.setGravity(Gravity.CENTER_VERTICAL|Gravity.RIGHT);
-        context.addView(appText,new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f));
-        context.addView(latencyText,new LinearLayout.LayoutParams(dp(compact?36:42),LinearLayout.LayoutParams.MATCH_PARENT));
-        LinearLayout.LayoutParams ctxLp = new LinearLayout.LayoutParams(dp(compact?104:132),dp(25));
-        ctxLp.leftMargin=dp(4);
-        bar.addView(context,ctxLp);
-
-        statusText=textView("Offline",7.7f,MUTED,false);
-        statusText.setGravity(Gravity.CENTER);
-        statusText.setMaxLines(1);
-        statusText.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        LinearLayout.LayoutParams stLp = new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f);
-        stLp.leftMargin=dp(4);
-        bar.addView(statusText,stLp);
-
+        connectButton = button("Connect",8);
+        hapticButton = button("Haptic",8);
         return bar;
-    }
-
-    private void updateHapticButtonStyle(){
-        if(hapticButton==null)return;
-        int normal=haptics?Color.rgb(15,78,92):KEY;
-        int pressed=haptics?Color.rgb(14,116,144):Color.rgb(43,61,84);
-        hapticButton.setBackground(stateBg(normal,pressed,7,BORDER));
-    }
-
-    private void showManualPairDialog(){
-        LinearLayout box=new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(dp(16),dp(6),dp(16),0);
-
-        EditText host=new EditText(this);
-        host.setHint("PC IP or IP:port");
-        host.setSingleLine(true);
-        host.setText(hostInput==null?"":hostInput.getText().toString());
-        box.addView(host,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,dp(50)));
-
-        EditText code=new EditText(this);
-        code.setHint("6-digit code (not needed for a trusted PC)");
-        code.setInputType(InputType.TYPE_CLASS_NUMBER);
-        code.setSingleLine(true);
-        code.setText(codeInput==null?"":codeInput.getText().toString());
-        box.addView(code,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,dp(50)));
-
-        new AlertDialog.Builder(this)
-                .setTitle("Manual PC connection")
-                .setMessage("QR pairing is recommended. Use this only when discovery/QR is unavailable.")
-                .setView(box)
-                .setPositiveButton("Connect",(d,w)->{
-                    String h=host.getText().toString().trim();
-                    String p=code.getText().toString().trim();
-                    if(h.isEmpty()){
-                        onStatus("error","Enter the PC address");
-                        return;
-                    }
-                    hostInput.setText(h);
-                    codeInput.setText(p);
-                    link.connect(h,p);
-                })
-                .setNegativeButton("Cancel",null)
-                .show();
     }
 
     private void startQrScan() {
