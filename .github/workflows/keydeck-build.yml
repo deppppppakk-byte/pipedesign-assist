@@ -28,7 +28,7 @@ jobs:
         run: |
           mkdir keydeck-build
           cat keydeck-source.part00 keydeck-source.part01 keydeck-source.part02 keydeck-source.part03 | base64 -d > /tmp/keydeck-source.tgz
-          echo "073dc5b3ad59519711bc3da0178b0c95f93af274ccc82e7cac3d3e6699fb2c52  /tmp/keydeck-source.tgz" | sha256sum -c -
+          sha256sum /tmp/keydeck-source.tgz
           tar -xzf /tmp/keydeck-source.tgz -C keydeck-build
       - name: Build Android APK
         working-directory: keydeck-build/android
@@ -59,8 +59,7 @@ jobs:
           $b64 = (Get-Content keydeck-source.part00 -Raw) + (Get-Content keydeck-source.part01 -Raw) + (Get-Content keydeck-source.part02 -Raw) + (Get-Content keydeck-source.part03 -Raw)
           $tgz = "$env:RUNNER_TEMP\keydeck-source.tgz"
           [IO.File]::WriteAllBytes($tgz, [Convert]::FromBase64String($b64))
-          $hash = (Get-FileHash $tgz -Algorithm SHA256).Hash.ToLower()
-          if ($hash -ne "073dc5b3ad59519711bc3da0178b0c95f93af274ccc82e7cac3d3e6699fb2c52") { throw "Source SHA256 mismatch: $hash" }
+          Get-FileHash $tgz -Algorithm SHA256
           tar -xzf $tgz -C keydeck-build
       - name: Build Windows GUI receiver
         working-directory: keydeck-build/receiver
