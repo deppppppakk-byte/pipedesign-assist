@@ -15,7 +15,12 @@
     <PublishTrimmed>false</PublishTrimmed>
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
+    <ApplicationIcon>WirelessKey.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <Target Name="GenerateWirelessKeyIcon" BeforeTargets="BeforeBuild" Condition="!Exists('WirelessKey.ico')">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\generate-icon.ps1&quot;" />
+  </Target>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
