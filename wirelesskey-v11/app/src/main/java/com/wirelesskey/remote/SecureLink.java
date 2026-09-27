@@ -6,6 +6,7 @@ import android.os.Handler;
 import android.os.Looper;
 
 import org.json.JSONObject;
+import org.json.JSONArray;
 
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -41,6 +42,7 @@ public final class SecureLink {
         void onDiscoveryDone();
         void onContext(JSONObject context);
         void onLatency(long ms);
+        void onClipboard(String text);
     }
 
     private final Context context;
@@ -107,6 +109,79 @@ public final class SecureLink {
     public void save(String host, String code) {
         prefs.edit().putString("host", host == null ? "" : host.trim())
                 .putString("code", code == null ? "" : code.trim()).apply();
+    }
+
+    public String loadKnownPeersJson() {
+        return prefs.getString("known_peers", "[]");
+    }
+
+    public synchronized void rememberPeer(String name, String rawHost, String fingerprint) {
+        String host = normalizeHost(rawHost);
+        if (host.isEmpty() || fingerprint == null || fingerprint.trim().isEmpty()) return;
+
+        String fp = fingerprint.trim().toLowerCase(Locale.US);
+        discoveredFingerprints.put(host, fp);
+        prefs.edit().putString(certKey(host), fp).apply();
+
+        try {
+            JSONArray old = new JSONArray(loadKnownPeersJson());
+            JSONArray fresh = new JSONArray();
+            boolean inserted = false;
+
+            for (int i = 0; i < old.length(); i++) {
+                JSONObject peer = old.optJSONObject(i);
+                if (peer == null) continue;
+                String peerFp = peer.optString("fingerprint", "");
+                String peerHost = normalizeHost(peer.optString("host", ""));
+                if (peerFp.equalsIgnoreCase(fp) || peerHost.equalsIgnoreCase(host)) {
+                    if (!inserted) {
+                        JSONObject updated = new JSONObject();
+                        updated.put("name", name == null || name.trim().isEmpty() ? "WirelessKey PC" : name.trim());
+                        updated.put("host", host);
+                        updated.put("fingerprint", fp);
+                        updated.put("lastSeen", System.currentTimeMillis());
+                        fresh.put(updated);
+                        inserted = true;
+                    }
+                } else {
+                    fresh.put(peer);
+                }
+            }
+
+            if (!inserted) {
+                JSONObject peer = new JSONObject();
+                peer.put("name", name == null || name.trim().isEmpty() ? "WirelessKey PC" : name.trim());
+                peer.put("host", host);
+                peer.put("fingerprint", fp);
+                peer.put("lastSeen", System.currentTimeMillis());
+                fresh.put(peer);
+            }
+
+            prefs.edit().putString("known_peers", fresh.toString()).apply();
+        } catch (Exception ignored) {
+        }
+    }
+
+    public JSONObject importPairingQr(String payload) throws Exception {
+        JSONObject obj = new JSONObject(payload);
+        if (!"wirelesskey_pair".equals(obj.optString("type", ""))) {
+            throw new IllegalArgumentException("Not a WirelessKey pairing QR");
+        }
+
+        String ip = obj.optString("ip", "").trim();
+        int port = obj.optInt("port", 8765);
+        String host = normalizeHost(ip + ":" + port);
+        String fingerprint = obj.optString("fingerprint", "").trim().toLowerCase(Locale.US);
+        String code = obj.optString("code", "").trim();
+        String name = obj.optString("name", obj.optString("pcName", "WirelessKey PC"));
+
+        if (ip.isEmpty() || fingerprint.length() < 32 || code.length() != 6) {
+            throw new IllegalArgumentException("Incomplete WirelessKey pairing QR");
+        }
+
+        rememberPeer(name, host, fingerprint);
+        obj.put("host", host);
+        return obj;
     }
 
     private void postStatus(String kind, String detail) {
@@ -266,7 +341,9 @@ public final class SecureLink {
                             reconnectAttempt = 0;
                             String token = obj.optString("token", "");
                             if (!token.isEmpty()) prefs.edit().putString(tokenKey(finalFingerprint), token).apply();
-                            postStatus("connected", "Secure · " + obj.optString("pcName", "PC"));
+                            String pcName = obj.optString("pcName", "PC");
+                            rememberPeer(pcName, host, finalFingerprint);
+                            postStatus("connected", "Secure · " + pcName);
                             main.removeCallbacks(latencyTask);
                             main.post(latencyTask);
                         } else {
@@ -284,6 +361,10 @@ public final class SecureLink {
                         long ms = Math.max(0, System.currentTimeMillis() - sent);
                         Listener l = listener;
                         if (l != null) main.post(() -> l.onLatency(ms));
+                    } else if ("clipboard".equals(type)) {
+                        String text = obj.optString("text", "");
+                        Listener l = listener;
+                        if (l != null) main.post(() -> l.onClipboard(text));
                     }
                 } catch (Exception ignored) {
                 }
@@ -385,6 +466,32 @@ public final class SecureLink {
                 if (l != null) main.post(l::onDiscoveryDone);
             }
         });
+    }
+
+    public void requestClipboard() {
+        WebSocket ws = socket;
+        if (!authenticated || ws == null) {
+            postStatus("error", "Connect to a PC first");
+            return;
+        }
+        try {
+            JSONObject o = new JSONObject();
+            o.put("type", "clipboard_get");
+            ws.send(o.toString());
+        } catch (Exception ignored) {
+        }
+    }
+
+    public void setRemoteClipboard(String text) {
+        if (text == null) text = "";
+        if (text.length() > 20000) text = text.substring(0, 20000);
+        try {
+            JSONObject event = new JSONObject();
+            event.put("type", "clipboard_set");
+            event.put("text", text);
+            send(event);
+        } catch (Exception ignored) {
+        }
     }
 
     public void shutdown() {
