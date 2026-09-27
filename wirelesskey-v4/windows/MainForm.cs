@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using QRCoder;
 
 namespace WirelessKey.NativeReceiver;
 
@@ -38,6 +39,7 @@ internal sealed class MainForm : Form
         var menu = new ContextMenuStrip();
         menu.Items.Add("Show WirelessKey", null, (_, _) => ShowFromTray());
         menu.Items.Add("New Pairing Code", null, (_, _) => _host.RotatePairCode());
+        menu.Items.Add("Show Pairing QR", null, (_, _) => ShowPairingQr());
         menu.Items.Add("Start with Windows", null, (_, _) => ToggleStartup());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) =>
@@ -50,7 +52,7 @@ internal sealed class MainForm : Form
         _tray = new NotifyIcon
         {
             Icon = SystemIcons.Application,
-            Text = "WirelessKey 4.0",
+            Text = "WirelessKey 4.1",
             Visible = true,
             ContextMenuStrip = menu
         };
@@ -68,7 +70,7 @@ internal sealed class MainForm : Form
     {
         var title = new Label
         {
-            Text = "WirelessKey 4.0",
+            Text = "WirelessKey 4.1",
             Font = new Font("Segoe UI", 24F, FontStyle.Bold),
             ForeColor = Color.White,
             AutoSize = true,
@@ -115,22 +117,29 @@ internal sealed class MainForm : Form
         _fingerprintValue.Font = new Font("Consolas", 7.5F);
         card.Controls.Add(_fingerprintValue);
 
-        var newCode = MakeButton("New Pairing Code", Color.FromArgb(29, 78, 216));
+        var newCode = MakeButton("New Code", Color.FromArgb(29, 78, 216));
         newCode.Left = 22;
         newCode.Top = 348;
-        newCode.Width = 145;
+        newCode.Width = 105;
         newCode.Click += (_, _) => _host.RotatePairCode();
         Controls.Add(newCode);
 
-        var revoke = MakeButton("Revoke All Phones", Color.FromArgb(127, 29, 29));
-        revoke.Left = 176;
+        var qrPair = MakeButton("QR Pair", Color.FromArgb(6, 95, 70));
+        qrPair.Left = 135;
+        qrPair.Top = 348;
+        qrPair.Width = 90;
+        qrPair.Click += (_, _) => ShowPairingQr();
+        Controls.Add(qrPair);
+
+        var revoke = MakeButton("Revoke Phones", Color.FromArgb(127, 29, 29));
+        revoke.Left = 233;
         revoke.Top = 348;
-        revoke.Width = 145;
+        revoke.Width = 115;
         revoke.Click += (_, _) =>
         {
             var result = MessageBox.Show(
                 "Revoke every trusted phone? They will need to pair again.",
-                "WirelessKey 4.0",
+                "WirelessKey 4.1",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question);
             if (result == DialogResult.Yes) _host.RevokeAll();
@@ -139,9 +148,9 @@ internal sealed class MainForm : Form
 
         _startupButton.Text = "";
         StyleButton(_startupButton, Color.FromArgb(22, 32, 51));
-        _startupButton.Left = 330;
+        _startupButton.Left = 356;
         _startupButton.Top = 348;
-        _startupButton.Width = 160;
+        _startupButton.Width = 134;
         _startupButton.Click += (_, _) => ToggleStartup();
         Controls.Add(_startupButton);
         RefreshStartupButton();
@@ -163,7 +172,7 @@ internal sealed class MainForm : Form
         {
             card.Width = ClientSize.Width - 44;
             note.Width = ClientSize.Width - 48;
-            _startupButton.Left = Math.Max(330, ClientSize.Width - 182);
+            _startupButton.Left = Math.Max(356, ClientSize.Width - 156);
         };
     }
 
@@ -249,8 +258,94 @@ internal sealed class MainForm : Form
         _fingerprintValue.Text = "Certificate SHA-256: " + fp;
 
         _tray.Text = devices.Length == 0
-            ? "WirelessKey 4.0 · waiting for phone"
-            : $"WirelessKey 4.0 · {devices.Length} connected";
+            ? "WirelessKey 4.1 · waiting for phone"
+            : $"WirelessKey 4.1 · {devices.Length} connected";
+    }
+
+    private void ShowPairingQr()
+    {
+        try
+        {
+            using var generator = new QRCodeGenerator();
+            using var qrData = generator.CreateQrCode(_host.PairingPayload, QRCodeGenerator.ECCLevel.Q);
+            var pngQr = new PngByteQRCode(qrData);
+            var bytes = pngQr.GetGraphic(8);
+
+            using var stream = new MemoryStream(bytes);
+            using var source = Image.FromStream(stream);
+            var bitmap = new Bitmap(source);
+
+            using var dialog = new Form
+            {
+                Text = "WirelessKey 4.1 · QR Pair",
+                Width = 390,
+                Height = 470,
+                StartPosition = FormStartPosition.CenterParent,
+                BackColor = Color.FromArgb(8,17,31),
+                ForeColor = Color.White,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false
+            };
+
+            var title = new Label
+            {
+                Text = "Scan with WirelessKey on Android",
+                Left = 25,
+                Top = 18,
+                Width = 330,
+                Height = 26,
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 12F, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+
+            var picture = new PictureBox
+            {
+                Image = bitmap,
+                SizeMode = PictureBoxSizeMode.Zoom,
+                Left = 45,
+                Top = 55,
+                Width = 280,
+                Height = 280,
+                BackColor = Color.White
+            };
+
+            var code = new Label
+            {
+                Text = "Pairing code: " + _host.PairCode,
+                Left = 30,
+                Top = 348,
+                Width = 320,
+                Height = 32,
+                ForeColor = Color.FromArgb(96,165,250),
+                Font = new Font("Consolas", 16F, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+
+            var note = new Label
+            {
+                Text = "The QR contains this PC's local address, certificate identity and temporary pairing code.",
+                Left = 28,
+                Top = 387,
+                Width = 324,
+                Height = 42,
+                ForeColor = Color.FromArgb(148,163,184),
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+
+            dialog.Controls.Add(title);
+            dialog.Controls.Add(picture);
+            dialog.Controls.Add(code);
+            dialog.Controls.Add(note);
+            dialog.ShowDialog(this);
+            picture.Image = null;
+            bitmap.Dispose();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "WirelessKey QR pairing", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private void ShowFromTray()
