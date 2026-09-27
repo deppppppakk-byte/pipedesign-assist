@@ -1216,40 +1216,50 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     }
 
     private View buildClipboardPanel(){
-        LinearLayout root=new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(4),dp(4),dp(4),dp(4));
+        LinearLayout root=card(14);
 
-        TextView title=textView("Secure Clipboard",11,TEXT,true);
-        root.addView(title,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,dp(28)));
+        LinearLayout header=row();
+        TextView title=textView("Clipboard",10.5f,TEXT,true);
+        TextView secure=textView("ENCRYPTED",6.8f,Color.rgb(117,194,161),true);
+        secure.setLetterSpacing(0.08f);
+        secure.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
+        header.addView(title,new LinearLayout.LayoutParams(0,dp(27),1f));
+        header.addView(secure,new LinearLayout.LayoutParams(dp(72),dp(27)));
+        root.addView(header,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(27)));
 
         clipboardPreview=new EditText(this);
-        clipboardPreview.setTextColor(TEXT);
-        clipboardPreview.setHintTextColor(MUTED);
-        clipboardPreview.setHint("Clipboard text preview");
-        clipboardPreview.setTextSize(9);
+        clipboardPreview.setTextColor(Color.rgb(224,230,239));
+        clipboardPreview.setHintTextColor(Color.rgb(101,111,126));
+        clipboardPreview.setHint("Clipboard text");
+        clipboardPreview.setTextSize(8.8f);
         clipboardPreview.setGravity(Gravity.TOP|Gravity.START);
-        clipboardPreview.setPadding(dp(8),dp(6),dp(8),dp(6));
-        clipboardPreview.setBackground(bg(Color.rgb(9,19,33),8,BORDER));
-        LinearLayout.LayoutParams previewLp=new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,0,1f);
-        previewLp.bottomMargin=dp(5);
+        clipboardPreview.setPadding(dp(10),dp(8),dp(10),dp(8));
+        clipboardPreview.setBackground(gradient(
+                Color.rgb(22,27,34),
+                Color.rgb(17,21,27),
+                10,
+                Color.rgb(38,45,55)));
+        LinearLayout.LayoutParams previewLp=new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,0,1f);
+        previewLp.bottomMargin=dp(7);
         root.addView(clipboardPreview,previewLp);
 
-        LinearLayout row1=row();
-        Button phoneToPc=button("Phone → PC",9);
-        Button pcToPhone=button("PC → Phone",9);
-        row1.addView(phoneToPc,new LinearLayout.LayoutParams(0,dp(34),1f));
-        row1.addView(pcToPhone,new LinearLayout.LayoutParams(0,dp(34),1f));
-        root.addView(row1,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,dp(34)));
-
-        LinearLayout row2=row();
-        Button pastePc=button("Send + Paste",9);
-        Button clear=button("Clear",9);
-        row2.addView(pastePc,new LinearLayout.LayoutParams(0,dp(34),1f));
-        row2.addView(clear,new LinearLayout.LayoutParams(0,dp(34),1f));
-        LinearLayout.LayoutParams row2Lp=new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,dp(34));
-        row2Lp.topMargin=dp(4);
-        root.addView(row2,row2Lp);
+        LinearLayout actions=row();
+        Button phoneToPc=button("Send to PC",8.3f);
+        Button pcToPhone=button("Get from PC",8.3f);
+        Button pastePc=button("Send + Paste",8.3f);
+        Button clear=button("Clear",8.3f);
+        phoneToPc.setBackground(stateBg(ACCENT_SOFT,Color.rgb(43,79,126),9,0));
+        pastePc.setBackground(stateBg(Color.rgb(28,62,55),Color.rgb(35,82,70),9,0));
+        for(Button b:new Button[]{phoneToPc,pcToPhone,pastePc,clear}){
+            b.setElevation(0);
+            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(33),1f);
+            lp.leftMargin=dp(2);lp.rightMargin=dp(2);
+            actions.addView(b,lp);
+        }
+        root.addView(actions,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(33)));
 
         phoneToPc.setOnClickListener(v->{
             haptic();
@@ -1296,24 +1306,39 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     }
 
     private View buildShortcutPanel(){
-        LinearLayout root=new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout root=card(14);
 
-        TextView profile=textView("Smart shortcuts · "+currentProfile,8,MUTED,true);
-        profile.setPadding(dp(4),0,dp(4),0);
-        root.addView(profile,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,dp(22)));
+        LinearLayout header=row();
+        TextView title=textView("Shortcuts",10.5f,TEXT,true);
+        TextView profile=textView(currentProfile.toUpperCase(),6.9f,Color.rgb(147,190,246),true);
+        profile.setLetterSpacing(0.08f);
+        profile.setGravity(Gravity.CENTER);
+        profile.setBackground(bg(Color.rgb(28,48,75),12,0));
+        header.addView(title,new LinearLayout.LayoutParams(0,dp(28),1f));
+        header.addView(profile,new LinearLayout.LayoutParams(dp(82),dp(24)));
+        root.addView(header,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(28)));
 
         shortcutGrid=new LinearLayout(this);
         shortcutGrid.setOrientation(LinearLayout.VERTICAL);
-        root.addView(shortcutGrid,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,0,2f));
+        root.addView(shortcutGrid,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,0,2f));
 
-        TextView macroTitle=textView("My Macros · tap to run · hold to edit",8,Color.rgb(125,211,252),true);
-        macroTitle.setPadding(dp(4),0,dp(4),0);
-        root.addView(macroTitle,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,dp(22)));
+        LinearLayout macroHeader=row();
+        TextView macroTitle=textView("Macros",9f,Color.rgb(188,199,212),true);
+        TextView hint=textView("tap run · hold edit",6.9f,MUTED,false);
+        hint.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
+        macroHeader.addView(macroTitle,new LinearLayout.LayoutParams(0,dp(22),1f));
+        macroHeader.addView(hint,new LinearLayout.LayoutParams(dp(105),dp(22)));
+        LinearLayout.LayoutParams mhLp=new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(22));
+        mhLp.topMargin=dp(5);
+        root.addView(macroHeader,mhLp);
 
         macroGrid=new LinearLayout(this);
         macroGrid.setOrientation(LinearLayout.VERTICAL);
-        root.addView(macroGrid,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,0,0.8f));
+        root.addView(macroGrid,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,0,0.9f));
 
         renderShortcuts();
         renderMacros();
@@ -1377,7 +1402,13 @@ public class MainActivity extends Activity implements SecureLink.Listener {
             LinearLayout r=row();
             for(int j=0;j<cols;j++){
                 if(i+j<list.size()){
-                    Shortcut s=list.get(i+j);Button b=button(s.label,8.5f);
+                    Shortcut s=list.get(i+j);Button b=button(s.label,8.2f);
+                    b.setElevation(0);
+                    b.setBackground(stateBg(
+                            Color.rgb(28,33,41),
+                            Color.rgb(43,51,62),
+                            9,0));
+                    b.setTextColor(Color.rgb(205,214,225));
                     b.setOnClickListener(v->{haptic();fireShortcut(s);});
                     LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f);
                     lp.rightMargin=dp(3);r.addView(b,lp);
@@ -1413,7 +1444,13 @@ public class MainActivity extends Activity implements SecureLink.Listener {
                 int index=i+j;
                 if(index<macros.size()){
                     MacroStore.Macro macro=macros.get(index);
-                    Button b=button(macro.label,8.5f);
+                    Button b=button(macro.label,8.2f);
+                    b.setElevation(0);
+                    b.setTextColor(Color.rgb(205,219,238));
+                    b.setBackground(stateBg(
+                            Color.rgb(24,42,58),
+                            Color.rgb(33,57,77),
+                            9,0));
                     b.setOnClickListener(v->{haptic();runMacro(macro.action);});
                     b.setOnLongClickListener(v->{haptic();editMacro(index);return true;});
                     LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f);
