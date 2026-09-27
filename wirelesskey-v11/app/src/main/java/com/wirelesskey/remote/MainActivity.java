@@ -48,14 +48,18 @@ import java.util.Set;
 
 
 public class MainActivity extends Activity implements SecureLink.Listener {
-    private static final int BG = Color.rgb(10,12,17);
-    private static final int PANEL = Color.rgb(20,24,31);
-    private static final int KEY = Color.rgb(31,36,45);
-    private static final int KEY_ACTIVE = Color.rgb(31,63,96);
-    private static final int BORDER = Color.rgb(48,55,66);
+    private static final int BG = Color.rgb(7,9,13);
+    private static final int PANEL = Color.rgb(16,20,26);
+    private static final int PANEL_2 = Color.rgb(22,27,34);
+    private static final int KEY = Color.rgb(31,36,44);
+    private static final int KEY_ALT = Color.rgb(25,29,36);
+    private static final int KEY_ACTIVE = Color.rgb(30,58,91);
+    private static final int BORDER = Color.rgb(42,48,57);
     private static final int TEXT = Color.rgb(246,248,251);
-    private static final int MUTED = Color.rgb(143,153,168);
-    private static final int ACCENT = Color.rgb(49,112,246);
+    private static final int MUTED = Color.rgb(136,146,160);
+    private static final int ACCENT = Color.rgb(76,132,255);
+    private static final int ACCENT_SOFT = Color.rgb(31,59,96);
+    private static final int SUCCESS = Color.rgb(69,196,139);
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private SecureLink link;
@@ -167,6 +171,34 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         d.setCornerRadius(dp(radiusDp));
         if (strokeColor != 0) d.setStroke(dp(1), strokeColor);
         return d;
+    }
+
+    private GradientDrawable gradient(int startColor, int endColor, float radiusDp, int strokeColor) {
+        GradientDrawable d = new GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{startColor,endColor});
+        d.setCornerRadius(dp(radiusDp));
+        if(strokeColor!=0)d.setStroke(dp(1),strokeColor);
+        return d;
+    }
+
+    private LinearLayout card(float radiusDp){
+        LinearLayout card=new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackground(gradient(
+                Color.rgb(19,23,29),
+                Color.rgb(14,17,22),
+                radiusDp,
+                Color.rgb(35,41,50)));
+        card.setPadding(dp(10),dp(8),dp(10),dp(8));
+        card.setElevation(dp(0.6f));
+        return card;
+    }
+
+    private TextView eyebrow(String text){
+        TextView t=textView(text,7.6f,Color.rgb(112,151,208),true);
+        t.setLetterSpacing(0.08f);
+        return t;
     }
 
     private StateListDrawable stateBg(int normalColor, int pressedColor, float radiusDp, int strokeColor) {
