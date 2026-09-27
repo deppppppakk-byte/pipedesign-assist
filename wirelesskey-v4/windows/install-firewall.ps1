@@ -11,8 +11,15 @@ function Write-Log([string]$Message) {
 try {
     Write-Log "Starting WirelessKey firewall setup."
     Write-Log ("Identity: " + [System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
-    Write-Log ("ProgramPath: " + $ProgramPath)
+    Write-Log ("ProgramPath raw: " + $ProgramPath)
     Write-Log ("Program exists: " + (Test-Path $ProgramPath))
+
+    if (-not (Test-Path -LiteralPath $ProgramPath)) {
+        throw "Receiver executable was not found at $ProgramPath"
+    }
+
+    $ProgramPath = (Get-Item -LiteralPath $ProgramPath).FullName
+    Write-Log ("ProgramPath normalized: " + $ProgramPath)
 
     $service = Get-Service -Name MpsSvc -ErrorAction SilentlyContinue
     if ($service) { Write-Log ("MpsSvc status: " + $service.Status) } else { Write-Log "MpsSvc service not found." }
