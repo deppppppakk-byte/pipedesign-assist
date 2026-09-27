@@ -66,6 +66,7 @@ internal sealed class MainForm : Form
         menu.Items.Add("Open WirelessKey", null, (_, _) => ShowFromTray());
         menu.Items.Add("Pair a phone…", null, (_, _) => ShowPairingQr());
         menu.Items.Add("New pairing code", null, (_, _) => _host.RotatePairCode());
+        menu.Items.Add("Diagnostics", null, (_, _) => ShowDiagnostics());
         menu.Items.Add("Start with Windows", null, (_, _) => ToggleStartup());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) =>
@@ -148,11 +149,12 @@ internal sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             BackColor = Bg,
-            ColumnCount = 2,
+            ColumnCount = 3,
             RowCount = 1
         };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 128));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 148));
 
         var copy = new Panel { Dock = DockStyle.Fill, BackColor = Bg };
         var title = new Label
@@ -166,7 +168,7 @@ internal sealed class MainForm : Form
         };
         var subtitle = new Label
         {
-            Text = "RECEIVER 4.4  ·  PRECISION EDITION",
+            Text = "RECEIVER 4.5  ·  PRECISION EDITION",
             Font = new Font("Segoe UI", 8F, FontStyle.Bold),
             ForeColor = Color.FromArgb(112, 164, 238),
             AutoSize = true,
@@ -177,11 +179,17 @@ internal sealed class MainForm : Form
         copy.Controls.Add(subtitle);
         header.Controls.Add(copy, 0, 0);
 
+        var diagnostics = MakeButton("Diagnostics", Surface2, Border);
+        diagnostics.Dock = DockStyle.Fill;
+        diagnostics.Margin = new Padding(8, 12, 4, 14);
+        diagnostics.Click += (_, _) => ShowDiagnostics();
+        header.Controls.Add(diagnostics, 1, 0);
+
         var pair = MakeButton("Pair phone", Color.FromArgb(31, 59, 96), Accent);
         pair.Dock = DockStyle.Fill;
-        pair.Margin = new Padding(8, 12, 0, 14);
+        pair.Margin = new Padding(4, 12, 0, 14);
         pair.Click += (_, _) => ShowPairingQr();
-        header.Controls.Add(pair, 1, 0);
+        header.Controls.Add(pair, 2, 0);
 
         return header;
     }
@@ -624,6 +632,239 @@ internal sealed class MainForm : Form
 
         if (result == DialogResult.Yes)
             _host.RevokeAll();
+    }
+
+    private void ShowDiagnostics()
+    {
+        using var dialog = new Form
+        {
+            Text = "WirelessKey 4.5 · Diagnostics",
+            Width = 620,
+            Height = 560,
+            StartPosition = FormStartPosition.CenterParent,
+            BackColor = Bg,
+            ForeColor = TextPrimary,
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox = false,
+            MinimizeBox = false,
+            Icon = _appIcon
+        };
+
+        var root = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Bg,
+            Padding = new Padding(16),
+            ColumnCount = 1,
+            RowCount = 4
+        };
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 74));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+        dialog.Controls.Add(root);
+
+        var header = new Panel { Dock = DockStyle.Fill, BackColor = Bg };
+        var title = new Label
+        {
+            Text = "Receiver diagnostics",
+            Left = 0,
+            Top = 0,
+            AutoSize = true,
+            ForeColor = TextPrimary,
+            Font = new Font("Segoe UI", 16F, FontStyle.Bold)
+        };
+        var subtitle = new Label
+        {
+            Text = "Local health and input-pipeline counters",
+            Left = 2,
+            Top = 31,
+            AutoSize = true,
+            ForeColor = TextMuted,
+            Font = new Font("Segoe UI", 8.5F)
+        };
+        header.Controls.Add(title);
+        header.Controls.Add(subtitle);
+        root.Controls.Add(header, 0, 0);
+
+        var grid = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Surface,
+            Padding = new Padding(14),
+            ColumnCount = 2,
+            RowCount = 6,
+            Margin = new Padding(0, 5, 0, 8)
+        };
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        for (var i = 0; i < 6; i++) grid.RowStyles.Add(new RowStyle(SizeType.Percent, 16.67F));
+        root.Controls.Add(grid, 0, 1);
+
+        Label AddMetric(string caption, int col, int row)
+        {
+            var box = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(13, 17, 23),
+                Margin = new Padding(4)
+            };
+            var cap = new Label
+            {
+                Text = caption.ToUpperInvariant(),
+                Left = 10,
+                Top = 7,
+                Width = 220,
+                Height = 18,
+                ForeColor = Color.FromArgb(104, 137, 181),
+                Font = new Font("Segoe UI", 7F, FontStyle.Bold)
+            };
+            var value = new Label
+            {
+                Left = 10,
+                Top = 25,
+                Width = 225,
+                Height = 28,
+                ForeColor = TextPrimary,
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            box.Controls.Add(cap);
+            box.Controls.Add(value);
+            grid.Controls.Add(box, col, row);
+            return value;
+        }
+
+        var receiverValue = AddMetric("Receiver", 0, 0);
+        var tlsValue = AddMetric("TLS", 1, 0);
+        var endpointValue = AddMetric("Endpoint", 0, 1);
+        var uptimeValue = AddMetric("Uptime", 1, 1);
+        var connectedValue = AddMetric("Connected devices", 0, 2);
+        var trustedValue = AddMetric("Trusted devices", 1, 2);
+        var eventsValue = AddMetric("Input events", 0, 3);
+        var pointerValue = AddMetric("Pointer packets", 1, 3);
+        var invalidValue = AddMetric("Invalid pointer packets", 0, 4);
+        var lastInputValue = AddMetric("Last input", 1, 4);
+        var memoryValue = AddMetric("Receiver memory", 0, 5);
+        var healthValue = AddMetric("Health", 1, 5);
+
+        var checkPanel = new Panel { Dock = DockStyle.Fill, BackColor = Bg };
+        var checkText = new Label
+        {
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleLeft,
+            ForeColor = TextMuted,
+            Font = new Font("Segoe UI", 8.5F)
+        };
+        checkPanel.Controls.Add(checkText);
+        root.Controls.Add(checkPanel, 0, 2);
+
+        var actions = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 3,
+            BackColor = Bg
+        };
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 34));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));
+
+        var refresh = MakeButton("Refresh", Surface2, Border);
+        refresh.Margin = new Padding(0, 4, 4, 0);
+        var copy = MakeButton("Copy report", Surface2, Border);
+        copy.Margin = new Padding(4, 4, 4, 0);
+        var close = MakeButton("Close", Color.FromArgb(31, 59, 96), Accent);
+        close.Margin = new Padding(4, 4, 0, 0);
+        close.Click += (_, _) => dialog.Close();
+
+        actions.Controls.Add(refresh, 0, 0);
+        actions.Controls.Add(copy, 1, 0);
+        actions.Controls.Add(close, 2, 0);
+        root.Controls.Add(actions, 0, 3);
+
+        string BuildReport()
+        {
+            var d = _host.Diagnostics;
+            var uptime = DateTimeOffset.UtcNow - d.StartedAt;
+            var lastInput = d.LastInputAt.HasValue
+                ? d.LastInputAt.Value.LocalDateTime.ToString("G")
+                : "No input received";
+            var health = d.Running && d.TlsEnabled && d.InvalidPointerPackets == 0
+                ? "Healthy"
+                : d.Running && d.TlsEnabled
+                    ? "Running with warnings"
+                    : "Receiver unavailable";
+
+            return string.Join(Environment.NewLine, new[]
+            {
+                "WirelessKey Receiver 4.5 diagnostics",
+                $"Receiver: {(d.Running ? "Running" : "Stopped")}",
+                $"TLS: {(d.TlsEnabled ? "Enabled" : "Unavailable")}",
+                $"Endpoint: {d.Endpoint}",
+                $"Uptime: {uptime.Days}d {uptime.Hours:00}:{uptime.Minutes:00}:{uptime.Seconds:00}",
+                $"Connected devices: {d.ConnectedDevices}",
+                $"Trusted devices: {d.TrustedDevices}",
+                $"Input events: {d.InputEvents:n0}",
+                $"Pointer packets: {d.PointerPackets:n0}",
+                $"Invalid pointer packets: {d.InvalidPointerPackets:n0}",
+                $"Last input: {lastInput}",
+                $"Working set: {d.WorkingSetBytes / 1024d / 1024d:F1} MB",
+                $"Health: {health}"
+            });
+        }
+
+        void RefreshMetrics()
+        {
+            var d = _host.Diagnostics;
+            var uptime = DateTimeOffset.UtcNow - d.StartedAt;
+            var lastInput = d.LastInputAt.HasValue
+                ? d.LastInputAt.Value.ToLocalTime().ToString("HH:mm:ss")
+                : "None yet";
+            var healthy = d.Running && d.TlsEnabled && d.InvalidPointerPackets == 0;
+
+            receiverValue.Text = d.Running ? "● Running" : "Stopped";
+            receiverValue.ForeColor = d.Running ? Green : Red;
+            tlsValue.Text = d.TlsEnabled ? "TLS enabled" : "Unavailable";
+            tlsValue.ForeColor = d.TlsEnabled ? Green : Red;
+            endpointValue.Text = d.Endpoint;
+            uptimeValue.Text = $"{uptime.Days}d {uptime.Hours:00}:{uptime.Minutes:00}:{uptime.Seconds:00}";
+            connectedValue.Text = d.ConnectedDevices.ToString();
+            trustedValue.Text = d.TrustedDevices.ToString();
+            eventsValue.Text = d.InputEvents.ToString("n0");
+            pointerValue.Text = d.PointerPackets.ToString("n0");
+            invalidValue.Text = d.InvalidPointerPackets.ToString("n0");
+            invalidValue.ForeColor = d.InvalidPointerPackets == 0 ? Green : Red;
+            lastInputValue.Text = lastInput;
+            memoryValue.Text = $"{d.WorkingSetBytes / 1024d / 1024d:F1} MB";
+            healthValue.Text = healthy ? "● Healthy" : "Check warnings";
+            healthValue.ForeColor = healthy ? Green : Color.FromArgb(245, 190, 83);
+
+            checkText.Text = healthy
+                ? "Local health check: receiver is running securely and no invalid pointer packets have been observed."
+                : "Local health check found a warning. Review TLS, receiver state, and invalid-packet counters above.";
+        }
+
+        refresh.Click += (_, _) => RefreshMetrics();
+        copy.Click += (_, _) =>
+        {
+            try
+            {
+                Clipboard.SetText(BuildReport());
+                checkText.Text = "Diagnostics report copied to clipboard.";
+            }
+            catch (Exception ex)
+            {
+                checkText.Text = "Could not copy report: " + ex.Message;
+            }
+        };
+
+        var timer = new System.Windows.Forms.Timer { Interval = 1000 };
+        timer.Tick += (_, _) => RefreshMetrics();
+        dialog.FormClosed += (_, _) => timer.Dispose();
+
+        RefreshMetrics();
+        timer.Start();
+        dialog.ShowDialog(this);
     }
 
     private void ShowPairingQr()
