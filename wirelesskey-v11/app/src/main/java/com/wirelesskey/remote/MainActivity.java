@@ -301,6 +301,11 @@ public class MainActivity extends Activity implements SecureLink.Listener {
                 showManualPairDialog();
                 return;
             }
+            if (code.isEmpty() && !link.hasTrustedTokenForHost(host)) {
+                onStatus("offline","Pairing code required for this PC");
+                showManualPairDialog();
+                return;
+            }
             link.connect(host,code);
         });
         LinearLayout.LayoutParams conLp = new LinearLayout.LayoutParams(dp(compact?60:70),dp(30));
