@@ -1152,7 +1152,85 @@ public class MainActivity extends Activity implements SecureLink.Listener {
             });
         }else{
             b.setOnClickListener(v->{haptic();pressSpec(spec);});
+            if("mod".equals(spec.type)
+                    && ("CTRL".equals(spec.key)||"WIN".equals(spec.key)||"ALT".equals(spec.key))){
+                b.setOnLongClickListener(v->{
+                    haptic();
+                    showModifierQuickPopup(v,spec.key);
+                    return true;
+                });
+            }
         }
+    }
+
+    private void showModifierQuickPopup(View anchor,String modifier){
+        final PopupWindow popup=new PopupWindow(this);
+
+        LinearLayout popupCard=card(13);
+        popupCard.setPadding(dp(8),dp(7),dp(8),dp(8));
+        popupCard.addView(eyebrow(modifier+" QUICK ACTIONS"),new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(20)));
+
+        LinearLayout actionRow=row();
+        List<String[]> actions=new ArrayList<>();
+        if("CTRL".equals(modifier)){
+            actions.add(new String[]{"Copy","c","CTRL"});
+            actions.add(new String[]{"Paste","v","CTRL"});
+            actions.add(new String[]{"Undo","z","CTRL"});
+            actions.add(new String[]{"Task Mgr","ESC","CTRL","SHIFT"});
+        }else if("WIN".equals(modifier)){
+            actions.add(new String[]{"Desktop","d","WIN"});
+            actions.add(new String[]{"Explorer","e","WIN"});
+            actions.add(new String[]{"Task View","TAB","WIN"});
+            actions.add(new String[]{"Settings","i","WIN"});
+        }else{
+            actions.add(new String[]{"Next App","TAB","ALT"});
+            actions.add(new String[]{"Prev App","TAB","ALT","SHIFT"});
+            actions.add(new String[]{"Close","F4","ALT"});
+            actions.add(new String[]{"Menu","SPACE","ALT"});
+        }
+
+        for(String[] action:actions){
+            Button quick=button(action[0],7.8f);
+            quick.setElevation(0);
+            quick.setBackground(stateBg(
+                    Color.rgb(28,34,43),
+                    Color.rgb(43,51,63),
+                    9,0));
+            quick.setOnClickListener(v->{
+                List<String> mods=new ArrayList<>();
+                for(int i=2;i<action.length;i++)mods.add(action[i]);
+                sendKey(action[1],mods);
+                popup.dismiss();
+            });
+            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(34),1f);
+            lp.leftMargin=dp(2);lp.rightMargin=dp(2);
+            actionRow.addView(quick,lp);
+        }
+        popupCard.addView(actionRow,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(34)));
+
+        int width=dp(300);
+        int height=dp(72);
+        popup.setContentView(popupCard);
+        popup.setWidth(width);
+        popup.setHeight(height);
+        popup.setFocusable(true);
+        popup.setOutsideTouchable(true);
+        popup.setBackgroundDrawable(bg(Color.TRANSPARENT,13,0));
+        popup.setElevation(dp(12));
+
+        int[] loc=new int[2];
+        anchor.getLocationOnScreen(loc);
+        int screenW=getResources().getDisplayMetrics().widthPixels;
+        int x=Math.max(dp(8),Math.min(screenW-width-dp(8),loc[0]+anchor.getWidth()/2-width/2));
+        int y=Math.max(dp(8),loc[1]-height-dp(8));
+
+        popupCard.setAlpha(0f);
+        popupCard.setScaleX(0.96f);
+        popupCard.setScaleY(0.96f);
+        popup.showAtLocation(appRoot,Gravity.TOP|Gravity.LEFT,x,y);
+        popupCard.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(120).start();
     }
 
     private String displayFor(KeySpec s){
