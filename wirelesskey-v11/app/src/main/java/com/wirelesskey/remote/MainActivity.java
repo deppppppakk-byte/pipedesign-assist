@@ -1,5 +1,8 @@
 package com.wirelesskey.remote;
 
+import android.animation.ObjectAnimator;
+import android.animation.PropertyValuesHolder;
+import android.animation.StateListAnimator;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
@@ -195,9 +198,27 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         b.setMinimumHeight(0);
         b.setMinWidth(0);
         b.setMinimumWidth(0);
-        b.setBackground(stateBg(KEY, Color.rgb(43,61,84), 7, BORDER));
-        b.setElevation(dp(1.2f));
+        b.setBackground(stateBg(KEY, Color.rgb(45,52,63), 8, Color.rgb(39,45,54)));
+        b.setElevation(dp(0.7f));
+        installPressAnimator(b);
         return b;
+    }
+
+    private void installPressAnimator(View view){
+        StateListAnimator animator=new StateListAnimator();
+        ObjectAnimator pressed=ObjectAnimator.ofPropertyValuesHolder(
+                view,
+                PropertyValuesHolder.ofFloat(View.SCALE_X,0.965f),
+                PropertyValuesHolder.ofFloat(View.SCALE_Y,0.965f));
+        pressed.setDuration(45);
+        ObjectAnimator normal=ObjectAnimator.ofPropertyValuesHolder(
+                view,
+                PropertyValuesHolder.ofFloat(View.SCALE_X,1f),
+                PropertyValuesHolder.ofFloat(View.SCALE_Y,1f));
+        normal.setDuration(70);
+        animator.addState(new int[]{android.R.attr.state_pressed},pressed);
+        animator.addState(new int[]{},normal);
+        view.setStateListAnimator(animator);
     }
 
     private View buildUi() {
@@ -719,6 +740,14 @@ public class MainActivity extends Activity implements SecureLink.Listener {
 
     private void addKey(LinearLayout row, KeySpec spec, float sp) {
         Button b=button(displayFor(spec),sp);
+        if(sp<=9f){
+            b.setTextColor(Color.rgb(180,190,204));
+            b.setBackground(stateBg(
+                    Color.rgb(24,28,35),
+                    Color.rgb(39,45,55),
+                    7,0));
+            b.setElevation(dp(0.3f));
+        }
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,spec.weight);
         lp.rightMargin=dp(3);
         row.addView(b,lp);
