@@ -37,7 +37,7 @@ internal static class Program
         {
             MessageBox.Show(
                 "WirelessKey could not start its secure receiver.\n\n" + ex.Message,
-                "WirelessKey 4.0",
+                "WirelessKey 4.1",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
             return;
