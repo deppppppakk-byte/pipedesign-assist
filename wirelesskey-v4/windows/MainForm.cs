@@ -52,7 +52,7 @@ internal sealed class MainForm : Form
         _tray = new NotifyIcon
         {
             Icon = SystemIcons.Application,
-            Text = "WirelessKey 4.1",
+            Text = "WirelessKey 4.1.1",
             Visible = true,
             ContextMenuStrip = menu
         };
@@ -70,7 +70,7 @@ internal sealed class MainForm : Form
     {
         var title = new Label
         {
-            Text = "WirelessKey 4.1",
+            Text = "WirelessKey 4.1.1",
             Font = new Font("Segoe UI", 24F, FontStyle.Bold),
             ForeColor = Color.White,
             AutoSize = true,
@@ -139,7 +139,7 @@ internal sealed class MainForm : Form
         {
             var result = MessageBox.Show(
                 "Revoke every trusted phone? They will need to pair again.",
-                "WirelessKey 4.1",
+                "WirelessKey 4.1.1",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question);
             if (result == DialogResult.Yes) _host.RevokeAll();
@@ -258,8 +258,8 @@ internal sealed class MainForm : Form
         _fingerprintValue.Text = "Certificate SHA-256: " + fp;
 
         _tray.Text = devices.Length == 0
-            ? "WirelessKey 4.1 · waiting for phone"
-            : $"WirelessKey 4.1 · {devices.Length} connected";
+            ? "WirelessKey 4.1.1 · waiting for phone"
+            : $"WirelessKey 4.1.1 · {devices.Length} connected";
     }
 
     private void ShowPairingQr()
@@ -267,9 +267,9 @@ internal sealed class MainForm : Form
         try
         {
             using var generator = new QRCodeGenerator();
-            using var qrData = generator.CreateQrCode(_host.PairingPayload, QRCodeGenerator.ECCLevel.Q);
+            using var qrData = generator.CreateQrCode(_host.PairingPayload, QRCodeGenerator.ECCLevel.M);
             var pngQr = new PngByteQRCode(qrData);
-            var bytes = pngQr.GetGraphic(8);
+            var bytes = pngQr.GetGraphic(10);
 
             using var stream = new MemoryStream(bytes);
             using var source = Image.FromStream(stream);
@@ -277,9 +277,9 @@ internal sealed class MainForm : Form
 
             using var dialog = new Form
             {
-                Text = "WirelessKey 4.1 · QR Pair",
-                Width = 390,
-                Height = 470,
+                Text = "WirelessKey 4.1.1 · QR Pair",
+                Width = 430,
+                Height = 520,
                 StartPosition = FormStartPosition.CenterParent,
                 BackColor = Color.FromArgb(8,17,31),
                 ForeColor = Color.White,
@@ -291,9 +291,9 @@ internal sealed class MainForm : Form
             var title = new Label
             {
                 Text = "Scan with WirelessKey on Android",
-                Left = 25,
+                Left = 30,
                 Top = 18,
-                Width = 330,
+                Width = 350,
                 Height = 26,
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 12F, FontStyle.Bold),
@@ -305,18 +305,18 @@ internal sealed class MainForm : Form
                 Image = bitmap,
                 SizeMode = PictureBoxSizeMode.Zoom,
                 Left = 45,
-                Top = 55,
-                Width = 280,
-                Height = 280,
+                Top = 58,
+                Width = 320,
+                Height = 320,
                 BackColor = Color.White
             };
 
             var code = new Label
             {
                 Text = "Pairing code: " + _host.PairCode,
-                Left = 30,
-                Top = 348,
-                Width = 320,
+                Left = 40,
+                Top = 392,
+                Width = 340,
                 Height = 32,
                 ForeColor = Color.FromArgb(96,165,250),
                 Font = new Font("Consolas", 16F, FontStyle.Bold),
@@ -326,10 +326,10 @@ internal sealed class MainForm : Form
             var note = new Label
             {
                 Text = "The QR contains this PC's local address, certificate identity and temporary pairing code.",
-                Left = 28,
-                Top = 387,
-                Width = 324,
-                Height = 42,
+                Left = 34,
+                Top = 432,
+                Width = 352,
+                Height = 50,
                 ForeColor = Color.FromArgb(148,163,184),
                 TextAlign = ContentAlignment.MiddleCenter
             };
