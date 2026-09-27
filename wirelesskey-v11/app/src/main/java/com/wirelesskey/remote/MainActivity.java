@@ -1350,18 +1350,26 @@ public class MainActivity extends Activity implements SecureLink.Listener {
 
     @Override
     public void onStatus(String kind, String detail) {
-        statusText.setText(detail);
+        if(statusText!=null)statusText.setText(detail);
+        int textColor=Color.rgb(171,181,195);
+        int dotColor=Color.rgb(94,105,120);
+
         if("connected".equals(kind)){
-            statusText.setTextColor(Color.rgb(52,211,153));
+            textColor=Color.rgb(186,236,216);
+            dotColor=SUCCESS;
             connectButton.setText("Reconnect");
             handler.postDelayed(this::reloadKnownPeersIntoSpinner,120);
         }else if("error".equals(kind)){
-            statusText.setTextColor(Color.rgb(251,113,133));
-        }else if("connecting".equals(kind)||"authenticating".equals(kind)||"reconnecting".equals(kind)||"discovering".equals(kind)){
-            statusText.setTextColor(Color.rgb(251,191,36));
-        }else{
-            statusText.setTextColor(MUTED);
+            textColor=Color.rgb(255,175,184);
+            dotColor=Color.rgb(235,91,110);
+        }else if("connecting".equals(kind)||"authenticating".equals(kind)
+                ||"reconnecting".equals(kind)||"discovering".equals(kind)){
+            textColor=Color.rgb(255,217,151);
+            dotColor=Color.rgb(240,174,72);
         }
+
+        if(statusText!=null)statusText.setTextColor(textColor);
+        if(statusDot!=null)statusDot.setBackground(bg(dotColor,20,0));
     }
 
     @Override
