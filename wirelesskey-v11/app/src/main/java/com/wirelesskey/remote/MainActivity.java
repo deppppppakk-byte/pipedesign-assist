@@ -416,6 +416,14 @@ public class MainActivity extends Activity implements SecureLink.Listener {
                 }
             }
         });
+
+        String selectedHost = hostInput == null ? "" : hostInput.getText().toString().trim();
+        for (int i = 0; i < deviceHosts.size(); i++) {
+            if (deviceHosts.get(i).equalsIgnoreCase(selectedHost)) {
+                spinner.setSelection(i + 1, false);
+                break;
+            }
+        }
     }
 
     private View buildWorkspaceRail() {
@@ -626,8 +634,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
 
         LinearLayout connStatus=row();
         TextView pc=textView(
-                hostInput==null||hostInput.getText().toString().trim().isEmpty()
-                        ?"No PC selected":hostInput.getText().toString().trim(),
+                selectedPcName(),
                 9.2f,TEXT,true);
         TextView ping=textView(latencyText==null?"— ms":latencyText.getText().toString(),
                 8.2f,Color.rgb(126,191,255),true);
@@ -648,7 +655,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
                 LinearLayout.LayoutParams.MATCH_PARENT,dp(40)));
 
         LinearLayout connectRow=row();
-        Button connect=button("Connect",8.7f);
+        Button connect=button("Connect / Switch",8.4f);
         Button qr=button("QR Pair",8.7f);
         Button find=button("Find PC",8.7f);
         Button manual=button("Manual",8.7f);
@@ -664,6 +671,35 @@ public class MainActivity extends Activity implements SecureLink.Listener {
                 LinearLayout.LayoutParams.MATCH_PARENT,dp(36));
         crLp.topMargin=dp(7);
         connectionCard.addView(connectRow,crLp);
+
+        LinearLayout manageRow=row();
+        Button favorite=button("★ Favorite",8f);
+        Button renamePc=button("Rename",8f);
+        Button forgetPc=button("Forget",8f);
+        for(Button b:new Button[]{favorite,renamePc,forgetPc}){
+            b.setElevation(0);
+            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(32),1f);
+            lp.leftMargin=dp(2); lp.rightMargin=dp(2);
+            manageRow.addView(b,lp);
+        }
+        favorite.setBackground(stateBg(
+                Color.rgb(48,45,29),
+                Color.rgb(65,60,35),
+                9,0));
+        forgetPc.setTextColor(Color.rgb(255,192,198));
+        forgetPc.setBackground(stateBg(
+                Color.rgb(55,29,35),
+                Color.rgb(78,37,45),
+                9,0));
+
+        LinearLayout.LayoutParams manageLp=new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(32));
+        manageLp.topMargin=dp(6);
+        connectionCard.addView(manageRow,manageLp);
+
+        favorite.setOnClickListener(v->{favoriteSelectedPeer();popup.dismiss();});
+        renamePc.setOnClickListener(v->{popup.dismiss();renameSelectedPeer();});
+        forgetPc.setOnClickListener(v->{popup.dismiss();forgetSelectedPeer();});
 
         LinearLayout.LayoutParams cardLp=new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT);
