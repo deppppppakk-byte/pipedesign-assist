@@ -1,4 +1,5 @@
-KeyDeck v1.2.1 combined render + connection fix
-source_sha256=89123bd81fd2eefa90e8d8e60898e8533f41121900fad489a6f9926815ce852a
-keyboard=104-visible-keys
-pairing=fresh-code-bypasses-stale-trust
+KeyDeck v1.2.2 duplicate-receiver ownership fix
+source_sha256=a6b162bfdbae071e4517976ad1dae465904cd5981b72f7b991372127e2a4f1e2
+keyboard=104-visible
+pairing=fresh-code
+single_receiver=tcp-8765-must-bind-before-ui

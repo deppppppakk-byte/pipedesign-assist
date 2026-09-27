@@ -19,22 +19,22 @@ jobs:
       - name: Checkout build branch
         uses: actions/checkout@v4
 
-      - name: Verify v1.2.1 source and regressions
+      - name: Verify v1.2.2 source and regressions
         shell: bash
         run: |
-          echo "89123bd81fd2eefa90e8d8e60898e8533f41121900fad489a6f9926815ce852a  keydeck-ci/KeyDeck-v1.2.1-CI-Source.zip" | sha256sum -c -
+          echo "a6b162bfdbae071e4517976ad1dae465904cd5981b72f7b991372127e2a4f1e2  keydeck-ci/KeyDeck-v1.2.2-CI-Source.zip" | sha256sum -c -
           rm -rf /tmp/keydeck
           mkdir -p /tmp/keydeck
-          unzip -q keydeck-ci/KeyDeck-v1.2.1-CI-Source.zip -d /tmp/keydeck
-          test -f /tmp/keydeck/KeyDeck_v1_2_1/android/app/build.gradle
-          test -f /tmp/keydeck/KeyDeck_v1_2_1/receiver/main.go
-          python /tmp/keydeck/KeyDeck_v1_2_1/qc/full_keyboard_qc.py
-          grep -F 'new LinearLayout.LayoutParams(0,-1,weights[i])' /tmp/keydeck/KeyDeck_v1_2_1/android/app/src/main/java/in/tamishra/keydeck/MainActivity.java
-          grep -F 'hello.put("code", pendingPairCode)' /tmp/keydeck/KeyDeck_v1_2_1/android/app/src/main/java/in/tamishra/keydeck/ConnectionManager.java
-          grep -F 'pairCode := strings.TrimSpace(hello.Code)' /tmp/keydeck/KeyDeck_v1_2_1/receiver/main.go
-          grep -F 'TestFreshCodeBypassesStaleTrust' /tmp/keydeck/KeyDeck_v1_2_1/receiver/protocol_test.go
-          grep -F 'TestHotspotLanRangesAccepted' /tmp/keydeck/KeyDeck_v1_2_1/receiver/protocol_test.go
-          grep -F 'KEYEVENTF_EXTENDEDKEY' /tmp/keydeck/KeyDeck_v1_2_1/receiver/input_windows.go
+          unzip -q keydeck-ci/KeyDeck-v1.2.2-CI-Source.zip -d /tmp/keydeck
+          test -f /tmp/keydeck/KeyDeck_v1_2_2/android/app/build.gradle
+          test -f /tmp/keydeck/KeyDeck_v1_2_2/receiver/main.go
+          python /tmp/keydeck/KeyDeck_v1_2_2/qc/full_keyboard_qc.py
+          grep -F 'new LinearLayout.LayoutParams(0,-1,weights[i])' /tmp/keydeck/KeyDeck_v1_2_2/android/app/src/main/java/in/tamishra/keydeck/MainActivity.java
+          grep -F 'hello.put("code", pendingPairCode)' /tmp/keydeck/KeyDeck_v1_2_2/android/app/src/main/java/in/tamishra/keydeck/ConnectionManager.java
+          grep -F 'TestFreshCodeBypassesStaleTrust' /tmp/keydeck/KeyDeck_v1_2_2/receiver/protocol_test.go
+          grep -F 'TestHotspotLanRangesAccepted' /tmp/keydeck/KeyDeck_v1_2_2/receiver/protocol_test.go
+          grep -F 'TestDuplicateControlPortIsRejected' /tmp/keydeck/KeyDeck_v1_2_2/receiver/protocol_test.go
+          grep -F 'openControlListener(":" + strconv.Itoa(tcpPort))' /tmp/keydeck/KeyDeck_v1_2_2/receiver/main.go
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -55,16 +55,16 @@ jobs:
           gradle-version: '8.10.2'
 
       - name: Build Android APK
-        working-directory: /tmp/keydeck/KeyDeck_v1_2_1/android
+        working-directory: /tmp/keydeck/KeyDeck_v1_2_2/android
         shell: bash
         run: |
           gradle --no-daemon --stacktrace :app:assembleDebug
-          cp app/build/outputs/apk/debug/app-debug.apk /tmp/KeyDeck-v1.2.1-Android.apk
-          sha256sum /tmp/KeyDeck-v1.2.1-Android.apk > /tmp/KeyDeck-v1.2.1-Android.apk.sha256
-          test -s /tmp/KeyDeck-v1.2.1-Android.apk
+          cp app/build/outputs/apk/debug/app-debug.apk /tmp/KeyDeck-v1.2.2-Android.apk
+          sha256sum /tmp/KeyDeck-v1.2.2-Android.apk > /tmp/KeyDeck-v1.2.2-Android.apk.sha256
+          test -s /tmp/KeyDeck-v1.2.2-Android.apk
           AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
-          BADGING="$("$AAPT" dump badging /tmp/KeyDeck-v1.2.1-Android.apk)"
-          echo "$BADGING" | grep -F "package: name='in.tamishra.keydeck' versionCode='10201' versionName='1.2.1'"
+          BADGING="$("$AAPT" dump badging /tmp/KeyDeck-v1.2.2-Android.apk)"
+          echo "$BADGING" | grep -F "package: name='in.tamishra.keydeck' versionCode='10202' versionName='1.2.2'"
           echo "$BADGING" | grep -F "application-label:'KeyDeck'"
 
       - name: Set up Go 1.23
@@ -73,35 +73,35 @@ jobs:
           go-version: '1.23.x'
 
       - name: Test and build Windows receiver
-        working-directory: /tmp/keydeck/KeyDeck_v1_2_1/receiver
+        working-directory: /tmp/keydeck/KeyDeck_v1_2_2/receiver
         shell: bash
         run: |
           go mod tidy
           go mod verify
           GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -v .
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-H windowsgui -s -w" -o /tmp/KeyDeckReceiver-v1.2.1.exe .
-          test -s /tmp/KeyDeckReceiver-v1.2.1.exe
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-H windowsgui -s -w" -o /tmp/KeyDeckReceiver-v1.2.2.exe .
+          test -s /tmp/KeyDeckReceiver-v1.2.2.exe
           mkdir -p /tmp/KeyDeck-Windows
-          cp /tmp/KeyDeckReceiver-v1.2.1.exe /tmp/KeyDeck-Windows/
+          cp /tmp/KeyDeckReceiver-v1.2.2.exe /tmp/KeyDeck-Windows/
           cp Allow-KeyDeck-Firewall.ps1 README.txt /tmp/KeyDeck-Windows/
           cd /tmp
-          zip -qr KeyDeck-v1.2.1-Windows-Receiver.zip KeyDeck-Windows
-          sha256sum KeyDeck-v1.2.1-Windows-Receiver.zip > KeyDeck-v1.2.1-Windows-Receiver.zip.sha256
+          zip -qr KeyDeck-v1.2.2-Windows-Receiver.zip KeyDeck-Windows
+          sha256sum KeyDeck-v1.2.2-Windows-Receiver.zip > KeyDeck-v1.2.2-Windows-Receiver.zip.sha256
 
       - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:
-          name: KeyDeck-v1.2.1-Android
+          name: KeyDeck-v1.2.2-Android
           if-no-files-found: error
           path: |
-            /tmp/KeyDeck-v1.2.1-Android.apk
-            /tmp/KeyDeck-v1.2.1-Android.apk.sha256
+            /tmp/KeyDeck-v1.2.2-Android.apk
+            /tmp/KeyDeck-v1.2.2-Android.apk.sha256
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: KeyDeck-v1.2.1-Windows
+          name: KeyDeck-v1.2.2-Windows
           if-no-files-found: error
           path: |
-            /tmp/KeyDeck-v1.2.1-Windows-Receiver.zip
-            /tmp/KeyDeck-v1.2.1-Windows-Receiver.zip.sha256
+            /tmp/KeyDeck-v1.2.2-Windows-Receiver.zip
+            /tmp/KeyDeck-v1.2.2-Windows-Receiver.zip.sha256
