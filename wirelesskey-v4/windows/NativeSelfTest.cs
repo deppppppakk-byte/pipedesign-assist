@@ -33,7 +33,7 @@ internal static class NativeSelfTest
             type = "auth",
             code = host.PairCode,
             device = "WirelessKey Native Self Test",
-            appVersion = "4.4"
+            appVersion = "4.5"
         });
         await ws.SendAsync(auth, WebSocketMessageType.Text, true, CancellationToken.None);
 
@@ -97,6 +97,16 @@ internal static class NativeSelfTest
         }
         if (!binaryPathHealthy)
             throw new InvalidOperationException("Binary pointer fast-path disrupted the connection.");
+
+        var diagnostics = host.Diagnostics;
+        if (!diagnostics.Running || !diagnostics.TlsEnabled)
+            throw new InvalidOperationException("Diagnostics did not report a healthy running TLS receiver.");
+        if (diagnostics.PointerPackets < 1)
+            throw new InvalidOperationException("Diagnostics did not count the binary pointer packet.");
+        if (diagnostics.LastInputAt == null)
+            throw new InvalidOperationException("Diagnostics did not record last input activity.");
+        if (diagnostics.InvalidPointerPackets != 0)
+            throw new InvalidOperationException("Diagnostics reported unexpected invalid pointer packets.");
 
         if (!host.RevokeTrusted(token))
             throw new InvalidOperationException("Trusted-device revoke failed.");
