@@ -1,4 +1,4 @@
-WIRELESSKEY 4.4 NATIVE PREVIEW
+WIRELESSKEY 4.5 NATIVE PREVIEW
 ===============================
 
 This is the first native-architecture build of WirelessKey.
@@ -39,7 +39,7 @@ This is a v4 architecture preview. Real phone-to-PC latency, gesture feel,
 screen-size ergonomics and reconnect-after-sleep still require device testing.
 
 
-V4.4 PHASE 2
+V4.5 PHASE 2
 ------------
 - QR pairing from the native Windows receiver
 - Remembered PCs on Android
