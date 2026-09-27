@@ -1,13 +1,16 @@
 package com.wirelesskey.remote;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -52,6 +55,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private SecureLink link;
 
+    private static final int CAMERA_REQUEST = 4101;
     private EditText hostInput, codeInput;
     private Button connectButton, hapticButton;
     private TextView statusText, appText, latencyText;
@@ -143,6 +147,13 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         return d;
     }
 
+    private StateListDrawable stateBg(int normalColor, int pressedColor, float radiusDp, int strokeColor) {
+        StateListDrawable states = new StateListDrawable();
+        states.addState(new int[]{android.R.attr.state_pressed}, bg(pressedColor, radiusDp, strokeColor));
+        states.addState(new int[]{}, bg(normalColor, radiusDp, strokeColor));
+        return states;
+    }
+
     private TextView textView(String text, float sp, int color, boolean bold) {
         TextView t = new TextView(this);
         t.setText(text);
@@ -165,7 +176,8 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         b.setMinimumHeight(0);
         b.setMinWidth(0);
         b.setMinimumWidth(0);
-        b.setBackground(bg(KEY, 7, BORDER));
+        b.setBackground(stateBg(KEY, Color.rgb(43,61,84), 7, BORDER));
+        b.setElevation(dp(1.2f));
         return b;
     }
 
