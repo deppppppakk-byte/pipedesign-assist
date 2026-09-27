@@ -633,11 +633,109 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         return root;
     }
 
+    private View buildClipboardPanel(){
+        LinearLayout root=new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(4),dp(4),dp(4),dp(4));
+
+        TextView title=textView("Secure Clipboard",11,TEXT,true);
+        root.addView(title,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,dp(28)));
+
+        clipboardPreview=new EditText(this);
+        clipboardPreview.setTextColor(TEXT);
+        clipboardPreview.setHintTextColor(MUTED);
+        clipboardPreview.setHint("Clipboard text preview");
+        clipboardPreview.setTextSize(9);
+        clipboardPreview.setGravity(Gravity.TOP|Gravity.START);
+        clipboardPreview.setPadding(dp(8),dp(6),dp(8),dp(6));
+        clipboardPreview.setBackground(bg(Color.rgb(9,19,33),8,BORDER));
+        LinearLayout.LayoutParams previewLp=new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,0,1f);
+        previewLp.bottomMargin=dp(5);
+        root.addView(clipboardPreview,previewLp);
+
+        LinearLayout row1=row();
+        Button phoneToPc=button("Phone → PC",9);
+        Button pcToPhone=button("PC → Phone",9);
+        row1.addView(phoneToPc,new LinearLayout.LayoutParams(0,dp(34),1f));
+        row1.addView(pcToPhone,new LinearLayout.LayoutParams(0,dp(34),1f));
+        root.addView(row1,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,dp(34)));
+
+        LinearLayout row2=row();
+        Button pastePc=button("Send + Paste",9);
+        Button clear=button("Clear",9);
+        row2.addView(pastePc,new LinearLayout.LayoutParams(0,dp(34),1f));
+        row2.addView(clear,new LinearLayout.LayoutParams(0,dp(34),1f));
+        LinearLayout.LayoutParams row2Lp=new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,dp(34));
+        row2Lp.topMargin=dp(4);
+        root.addView(row2,row2Lp);
+
+        phoneToPc.setOnClickListener(v->{
+            haptic();
+            String text=getPhoneClipboard();
+            if(text.isEmpty()) text=clipboardPreview.getText().toString();
+            clipboardPreview.setText(text);
+            link.setRemoteClipboard(text);
+            onStatus("connected","Clipboard sent to PC");
+        });
+
+        pcToPhone.setOnClickListener(v->{
+            haptic();
+            onStatus("connecting","Requesting PC clipboard...");
+            link.requestClipboard();
+        });
+
+        pastePc.setOnClickListener(v->{
+            haptic();
+            String text=clipboardPreview.getText().toString();
+            if(text.isEmpty()) text=getPhoneClipboard();
+            link.setRemoteClipboard(text);
+            handler.postDelayed(()->sendKey("v",new ArrayList<>(Arrays.asList("CTRL"))),80);
+        });
+
+        clear.setOnClickListener(v->{
+            haptic();
+            clipboardPreview.setText("");
+            ClipboardManager cm=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+            if(cm!=null) cm.setPrimaryClip(ClipData.newPlainText("WirelessKey",""));
+        });
+
+        return root;
+    }
+
+    private String getPhoneClipboard(){
+        try{
+            ClipboardManager cm=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+            if(cm==null||!cm.hasPrimaryClip()||cm.getPrimaryClip()==null||cm.getPrimaryClip().getItemCount()==0)return "";
+            CharSequence text=cm.getPrimaryClip().getItemAt(0).coerceToText(this);
+            return text==null?"":text.toString();
+        }catch(Exception e){
+            return "";
+        }
+    }
+
     private View buildShortcutPanel(){
+        LinearLayout root=new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+
+        TextView profile=textView("Smart shortcuts · "+currentProfile,8,MUTED,true);
+        profile.setPadding(dp(4),0,dp(4),0);
+        root.addView(profile,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,dp(22)));
+
         shortcutGrid=new LinearLayout(this);
         shortcutGrid.setOrientation(LinearLayout.VERTICAL);
+        root.addView(shortcutGrid,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,0,2f));
+
+        TextView macroTitle=textView("My Macros · tap to run · hold to edit",8,Color.rgb(125,211,252),true);
+        macroTitle.setPadding(dp(4),0,dp(4),0);
+        root.addView(macroTitle,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,dp(22)));
+
+        macroGrid=new LinearLayout(this);
+        macroGrid.setOrientation(LinearLayout.VERTICAL);
+        root.addView(macroGrid,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,0,0.8f));
+
         renderShortcuts();
-        return shortcutGrid;
+        renderMacros();
+        return root;
     }
 
     private static final class Shortcut {
@@ -694,17 +792,17 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         List<Shortcut> list=shortcutsFor(currentProfile);
         int cols=2;
         for(int i=0;i<list.size();i+=cols){
-            LinearLayout row=row();
+            LinearLayout r=row();
             for(int j=0;j<cols;j++){
                 if(i+j<list.size()){
-                    Shortcut s=list.get(i+j);Button b=button(s.label,9);
+                    Shortcut s=list.get(i+j);Button b=button(s.label,8.5f);
                     b.setOnClickListener(v->{haptic();fireShortcut(s);});
                     LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f);
-                    lp.rightMargin=dp(3);row.addView(b,lp);
-                }else row.addView(new View(this),new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f));
+                    lp.rightMargin=dp(3);r.addView(b,lp);
+                }else r.addView(new View(this),new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f));
             }
             LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,0,1f);
-            rp.bottomMargin=dp(3);shortcutGrid.addView(row,rp);
+            rp.bottomMargin=dp(3);shortcutGrid.addView(r,rp);
         }
     }
 
@@ -722,6 +820,105 @@ public class MainActivity extends Activity implements SecureLink.Listener {
             sendText(s.key);handler.postDelayed(()->sendKey("ENTER",new ArrayList<>()),24);return;
         }
         sendKey(s.key,new ArrayList<>(Arrays.asList(s.mods)));
+    }
+
+    private void renderMacros(){
+        if(macroGrid==null)return;
+        macroGrid.removeAllViews();
+        for(int i=0;i<macros.size();i+=2){
+            LinearLayout r=row();
+            for(int j=0;j<2;j++){
+                int index=i+j;
+                if(index<macros.size()){
+                    MacroStore.Macro macro=macros.get(index);
+                    Button b=button(macro.label,8.5f);
+                    b.setOnClickListener(v->{haptic();runMacro(macro.action);});
+                    b.setOnLongClickListener(v->{haptic();editMacro(index);return true;});
+                    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f);
+                    lp.rightMargin=dp(3);
+                    r.addView(b,lp);
+                }else{
+                    r.addView(new View(this),new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f));
+                }
+            }
+            LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,0,1f);
+            rp.bottomMargin=dp(3);
+            macroGrid.addView(r,rp);
+        }
+    }
+
+    private void editMacro(int index){
+        if(index<0||index>=macros.size())return;
+        MacroStore.Macro macro=macros.get(index);
+
+        LinearLayout box=new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(16),dp(8),dp(16),0);
+
+        EditText label=new EditText(this);
+        label.setHint("Macro name");
+        label.setText(macro.label);
+        box.addView(label,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,dp(48)));
+
+        EditText action=new EditText(this);
+        action.setHint("keys:CTRL+SHIFT+S  |  text:Hello  |  sequence:CTRL+C;ALT+TAB;CTRL+V");
+        action.setText(macro.action);
+        action.setSingleLine(false);
+        box.addView(action,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,dp(86)));
+
+        new AlertDialog.Builder(this)
+                .setTitle("Edit WirelessKey Macro")
+                .setView(box)
+                .setPositiveButton("Save",(d,w)->{
+                    macro.label=label.getText().toString().trim();
+                    if(macro.label.isEmpty())macro.label="Macro "+(index+1);
+                    macro.action=action.getText().toString().trim();
+                    macroStore.save(macros);
+                    renderMacros();
+                })
+                .setNegativeButton("Cancel",null)
+                .show();
+    }
+
+    private void runMacro(String action){
+        if(action==null||action.trim().isEmpty())return;
+        String raw=action.trim();
+        if(raw.startsWith("text:")){
+            sendText(raw.substring(5));
+            return;
+        }
+        if(raw.startsWith("keys:")){
+            runChord(raw.substring(5));
+            return;
+        }
+        if(raw.startsWith("sequence:")){
+            String[] steps=raw.substring(9).split(";");
+            long delay=0;
+            for(String step:steps){
+                final String s=step.trim();
+                if(s.isEmpty())continue;
+                handler.postDelayed(()->{
+                    if(s.startsWith("text="))sendText(s.substring(5));
+                    else runChord(s);
+                },delay);
+                delay+=110;
+            }
+            return;
+        }
+        sendText(raw);
+    }
+
+    private void runChord(String chord){
+        String[] parts=chord.trim().split("\\+");
+        if(parts.length==0)return;
+        List<String> mods=new ArrayList<>();
+        for(int i=0;i<parts.length-1;i++){
+            String p=parts[i].trim().toUpperCase();
+            if("CTRL".equals(p)||"ALT".equals(p)||"SHIFT".equals(p)||"WIN".equals(p))mods.add(p);
+        }
+        String key=parts[parts.length-1].trim();
+        if(key.isEmpty())return;
+        sendKey(key,mods);
     }
 
     private void haptic(){
