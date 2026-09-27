@@ -364,6 +364,7 @@ internal sealed class ReceiverHost : IAsyncDisposable
                 try { await contextTask; } catch { }
             }
             _connected.TryRemove(id, out _);
+            InputInjector.ResetPointerRemainders();
             StateChanged?.Invoke();
         }
     }
@@ -457,10 +458,10 @@ internal sealed class ReceiverHost : IAsyncDisposable
                 InputInjector.Move(a, b);
                 break;
             case 2:
-                InputInjector.Wheel((int)Math.Round(a));
+                InputInjector.Wheel(a);
                 break;
             case 3:
-                InputInjector.HWheel((int)Math.Round(a));
+                InputInjector.HWheel(a);
                 break;
         }
     }
