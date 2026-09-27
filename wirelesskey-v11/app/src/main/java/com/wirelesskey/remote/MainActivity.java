@@ -68,6 +68,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     private EditText hostInput, codeInput;
     private Button connectButton, hapticButton;
     private TextView statusText, appText, latencyText;
+    private View statusDot;
     private Spinner deviceSpinner;
     private ArrayAdapter<String> deviceAdapter;
     private final List<String> deviceHosts = new ArrayList<>();
@@ -256,20 +257,27 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     private View buildUi() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(BG);
-        root.setPadding(dp(4),dp(3),dp(4),dp(3));
+        root.setBackground(gradient(
+                Color.rgb(8,10,14),
+                Color.rgb(5,7,10),
+                0,
+                0));
+        root.setPadding(dp(6),dp(5),dp(6),dp(5));
 
         root.addView(buildTopBar(), new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(34)));
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(36)));
 
         workspaceHost = new FrameLayout(this);
+        workspaceHost.setClipToPadding(false);
         LinearLayout.LayoutParams hostLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-        hostLp.topMargin = dp(4);
+        hostLp.topMargin = dp(6);
         root.addView(workspaceHost, hostLp);
 
-        root.addView(buildWorkspaceRail(), new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(33)));
+        LinearLayout.LayoutParams railLp=new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(36));
+        railLp.topMargin=dp(6);
+        root.addView(buildWorkspaceRail(), railLp);
 
         handler.post(() -> showWorkspace(currentWorkspace));
         return root;
@@ -279,44 +287,80 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setPadding(dp(8),dp(2),dp(6),dp(2));
-        bar.setBackground(bg(PANEL,11,Color.rgb(34,39,48)));
-        bar.setElevation(dp(1));
+        bar.setPadding(dp(8),dp(3),dp(5),dp(3));
+        bar.setBackground(gradient(
+                Color.rgb(22,27,35),
+                Color.rgb(15,19,25),
+                12,
+                Color.rgb(36,42,51)));
+        bar.setElevation(dp(1.4f));
 
-        TextView brand = textView("WirelessKey", 11.5f, TEXT, true);
-        bar.addView(brand,new LinearLayout.LayoutParams(dp(92),LinearLayout.LayoutParams.MATCH_PARENT));
+        LinearLayout brandBlock=new LinearLayout(this);
+        brandBlock.setOrientation(LinearLayout.VERTICAL);
+        brandBlock.setGravity(Gravity.CENTER_VERTICAL);
 
-        statusText=textView("Offline",8.2f,MUTED,true);
-        statusText.setGravity(Gravity.CENTER);
+        TextView brand = textView("WirelessKey", 11.4f, TEXT, true);
+        TextView edition = textView("PRECISION", 6.3f, Color.rgb(103,151,220), true);
+        edition.setLetterSpacing(0.10f);
+        brandBlock.addView(brand,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,0,1.15f));
+        brandBlock.addView(edition,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,0,0.85f));
+        bar.addView(brandBlock,new LinearLayout.LayoutParams(dp(92),LinearLayout.LayoutParams.MATCH_PARENT));
+
+        LinearLayout statusPill=new LinearLayout(this);
+        statusPill.setOrientation(LinearLayout.HORIZONTAL);
+        statusPill.setGravity(Gravity.CENTER_VERTICAL);
+        statusPill.setPadding(dp(9),0,dp(9),0);
+        statusPill.setBackground(gradient(
+                Color.rgb(28,33,41),
+                Color.rgb(22,26,33),
+                16,
+                0));
+
+        statusDot=new View(this);
+        statusDot.setBackground(bg(Color.rgb(94,105,120),20,0));
+        LinearLayout.LayoutParams dotLp=new LinearLayout.LayoutParams(dp(7),dp(7));
+        dotLp.rightMargin=dp(7);
+        statusPill.addView(statusDot,dotLp);
+
+        statusText=textView("Offline",8.1f,Color.rgb(171,181,195),true);
         statusText.setMaxLines(1);
         statusText.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        statusText.setBackground(bg(Color.rgb(25,30,38),18,0));
-        LinearLayout.LayoutParams statusLp=new LinearLayout.LayoutParams(0,dp(25),1f);
-        statusLp.leftMargin=dp(4);
-        bar.addView(statusText,statusLp);
+        statusPill.addView(statusText,new LinearLayout.LayoutParams(
+                0,LinearLayout.LayoutParams.MATCH_PARENT,1f));
 
-        appText=textView("Desktop",8.2f,Color.rgb(200,210,224),true);
+        LinearLayout.LayoutParams statusLp=new LinearLayout.LayoutParams(0,dp(26),1f);
+        statusLp.leftMargin=dp(7);
+        bar.addView(statusPill,statusLp);
+
+        appText=textView("Desktop",8f,Color.rgb(190,201,215),true);
         appText.setGravity(Gravity.CENTER);
         appText.setMaxLines(1);
         appText.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        LinearLayout.LayoutParams appLp=new LinearLayout.LayoutParams(dp(88),dp(25));
-        appLp.leftMargin=dp(4);
+        appText.setBackground(bg(Color.rgb(25,29,36),14,0));
+        LinearLayout.LayoutParams appLp=new LinearLayout.LayoutParams(dp(82),dp(25));
+        appLp.leftMargin=dp(5);
         bar.addView(appText,appLp);
 
-        latencyText=textView("— ms",8,Color.rgb(115,193,255),true);
+        latencyText=textView("— ms",7.8f,Color.rgb(129,190,255),true);
         latencyText.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams latLp=new LinearLayout.LayoutParams(dp(50),dp(25));
-        latLp.leftMargin=dp(2);
+        latencyText.setBackground(bg(Color.rgb(20,38,58),14,0));
+        LinearLayout.LayoutParams latLp=new LinearLayout.LayoutParams(dp(52),dp(25));
+        latLp.leftMargin=dp(4);
         bar.addView(latencyText,latLp);
 
         Button control=button("•••",10);
-        control.setBackground(stateBg(Color.rgb(27,33,42),Color.rgb(43,51,63),9,0));
+        control.setBackground(stateBg(
+                Color.rgb(27,32,40),
+                Color.rgb(43,50,61),
+                12,0));
+        control.setElevation(0);
         control.setOnClickListener(v->{haptic();showControlCenter(v);});
-        LinearLayout.LayoutParams controlLp=new LinearLayout.LayoutParams(dp(44),dp(27));
+        LinearLayout.LayoutParams controlLp=new LinearLayout.LayoutParams(dp(42),dp(27));
         controlLp.leftMargin=dp(4);
         bar.addView(control,controlLp);
 
-        // Hidden connection state used by pairing dialogs and remembered PCs.
         hostInput = new EditText(this);
         hostInput.setText(link.loadHost());
         codeInput = new EditText(this);
