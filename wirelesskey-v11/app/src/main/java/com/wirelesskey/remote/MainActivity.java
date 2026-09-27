@@ -1141,7 +1141,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         if (index < 0) return;
         link.setFavoritePeer(deviceFingerprints.get(index));
         reloadKnownPeersIntoSpinner();
-        onStatus("connected", deviceNames.get(index) + " set as favorite");
+        onStatus("info", deviceNames.get(index) + " set as favorite");
     }
 
     private void renameSelectedPeer() {
@@ -1225,13 +1225,6 @@ public class MainActivity extends Activity implements SecureLink.Listener {
                 new KeySpec[]{KeySpec.ch(";",":"),KeySpec.ch("'","\""),KeySpec.special("ENTER","Enter",2.2f)}));
         rows.add(concat(new KeySpec[]{KeySpec.shift(2.2f)}, chars("zxcvbnm"),
                 new KeySpec[]{KeySpec.ch(",","<"),KeySpec.ch(".",">"),KeySpec.ch("/","?"),KeySpec.shift(2.2f)}));
-        rows.add(new KeySpec[]{
-                KeySpec.mod("CTRL","Ctrl",1.4f),KeySpec.mod("WIN","Win",1.2f),KeySpec.mod("ALT","Alt",1.2f),
-                KeySpec.special("SPACE","Space",5.2f),KeySpec.mod("ALT","Alt",1.2f),KeySpec.special("MENU","Menu",1.2f),
-                KeySpec.mod("CTRL","Ctrl",1.4f),KeySpec.special("LEFT","←",1f),KeySpec.special("UP","↑",1f),
-                KeySpec.special("DOWN","↓",1f),KeySpec.special("RIGHT","→",1f)
-        });
-
         for(KeySpec[] specs:rows){
             LinearLayout r=row();
             for(KeySpec s:specs) addKey(r,s,10.5f);
@@ -1239,6 +1232,47 @@ public class MainActivity extends Activity implements SecureLink.Listener {
             lp.topMargin=dp(2);
             panel.addView(r,lp);
         }
+
+        LinearLayout bottom=row();
+        addKey(bottom,KeySpec.mod("CTRL","Ctrl",1.35f),9.6f);
+        addKey(bottom,KeySpec.mod("WIN","Win",1.15f),9.6f);
+        addKey(bottom,KeySpec.mod("ALT","Alt",1.15f),9.6f);
+        addKey(bottom,KeySpec.special("SPACE","Space",5.6f),9.8f);
+        addKey(bottom,KeySpec.mod("ALT","Alt",1.15f),9.6f);
+        addKey(bottom,KeySpec.special("MENU","Menu",1.1f),9.2f);
+        addKey(bottom,KeySpec.mod("CTRL","Ctrl",1.35f),9.6f);
+
+        LinearLayout arrows=new LinearLayout(this);
+        arrows.setOrientation(LinearLayout.VERTICAL);
+        arrows.setPadding(dp(2),0,0,0);
+
+        LinearLayout arrowTop=row();
+        View upLeft=new View(this);
+        View upRight=new View(this);
+        arrowTop.addView(upLeft,new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f));
+        addKey(arrowTop,KeySpec.special("UP","↑",1f),8.7f);
+        arrowTop.addView(upRight,new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f));
+
+        LinearLayout arrowBottom=row();
+        addKey(arrowBottom,KeySpec.special("LEFT","←",1f),8.7f);
+        addKey(arrowBottom,KeySpec.special("DOWN","↓",1f),8.7f);
+        addKey(arrowBottom,KeySpec.special("RIGHT","→",1f),8.7f);
+
+        arrows.addView(arrowTop,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,0,1f));
+        LinearLayout.LayoutParams arrowBottomLp=new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,0,1f);
+        arrowBottomLp.topMargin=dp(1);
+        arrows.addView(arrowBottom,arrowBottomLp);
+
+        bottom.addView(arrows,new LinearLayout.LayoutParams(
+                0,LinearLayout.LayoutParams.MATCH_PARENT,3.1f));
+
+        LinearLayout.LayoutParams bottomLp=new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,0,1f);
+        bottomLp.topMargin=dp(2);
+        panel.addView(bottom,bottomLp);
+
         return panel;
     }
 
