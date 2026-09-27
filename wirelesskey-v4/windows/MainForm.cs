@@ -40,7 +40,7 @@ internal sealed class MainForm : Form
         _host = host;
         _appIcon = CreateAppIcon();
 
-        Text = "WirelessKey Receiver 4.4";
+        Text = "WirelessKey Receiver 4.5";
         Icon = _appIcon;
         Width = 850;
         Height = 570;
@@ -79,7 +79,7 @@ internal sealed class MainForm : Form
         _tray = new NotifyIcon
         {
             Icon = _appIcon,
-            Text = "WirelessKey 4.4",
+            Text = "WirelessKey 4.5",
             Visible = true,
             ContextMenuStrip = menu
         };
@@ -484,8 +484,8 @@ internal sealed class MainForm : Form
         RefreshStartupButton();
 
         _tray.Text = connected.Length == 0
-            ? "WirelessKey 4.4 · ready"
-            : $"WirelessKey 4.4 · {connected.Length} connected";
+            ? "WirelessKey 4.5 · ready"
+            : $"WirelessKey 4.5 · {connected.Length} connected";
     }
 
     private void RefreshTrustedList()
@@ -612,7 +612,7 @@ internal sealed class MainForm : Form
 
         var result = MessageBox.Show(
             $"Revoke trust for \"{name}\"?\n\nIt will be disconnected and must pair again.",
-            "WirelessKey 4.4",
+            "WirelessKey 4.5",
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Question);
 
@@ -626,7 +626,7 @@ internal sealed class MainForm : Form
 
         var result = MessageBox.Show(
             "Revoke every trusted phone?\n\nConnected phones will be disconnected immediately.",
-            "WirelessKey 4.4",
+            "WirelessKey 4.5",
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Warning);
 
@@ -882,7 +882,7 @@ internal sealed class MainForm : Form
 
             using var dialog = new Form
             {
-                Text = "WirelessKey 4.4 · Pair phone",
+                Text = "WirelessKey 4.5 · Pair phone",
                 Width = 440,
                 Height = 540,
                 StartPosition = FormStartPosition.CenterParent,
