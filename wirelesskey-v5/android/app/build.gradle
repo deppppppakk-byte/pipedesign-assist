@@ -8,15 +8,11 @@ android {
         applicationId 'in.tamishra.wirelesskey'
         minSdk 23
         targetSdk 35
-        versionCode 50001
-        versionName '5.0.1'
+        versionCode 51000
+        versionName '5.1.0'
     }
 
     buildTypes {
-        debug {
-            applicationIdSuffix '.debug'
-            versionNameSuffix '-debug'
-        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
