@@ -334,7 +334,7 @@ public final class SecureLink {
                     String token = prefs.getString(tokenKey(finalFingerprint), "");
                     if (!token.isEmpty()) auth.put("token", token);
                     auth.put("device", android.os.Build.MODEL == null ? "Android" : android.os.Build.MODEL);
-                    auth.put("appVersion", "4.1.1");
+                    auth.put("appVersion", "4.1.3");
                     ws.send(auth.toString());
                     postStatus("authenticating", "Authenticating...");
                 } catch (Exception e) {
