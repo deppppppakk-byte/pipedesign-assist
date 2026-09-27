@@ -367,7 +367,22 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         codeInput.setText(link.loadCode());
 
         deviceSpinner = new Spinner(this);
-        deviceAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, new ArrayList<String>());
+        deviceAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, new ArrayList<String>()) {
+            private TextView style(TextView t, boolean drop){
+                t.setTextColor(drop?TEXT:Color.rgb(211,219,230));
+                t.setTextSize(drop?10:9);
+                t.setGravity(Gravity.CENTER_VERTICAL);
+                t.setPadding(dp(10),0,dp(10),0);
+                if(drop)t.setBackgroundColor(Color.rgb(22,27,34));
+                return t;
+            }
+            @Override public View getView(int position,View convertView,android.view.ViewGroup parent){
+                return style((TextView)super.getView(position,convertView,parent),false);
+            }
+            @Override public View getDropDownView(int position,View convertView,android.view.ViewGroup parent){
+                return style((TextView)super.getDropDownView(position,convertView,parent),true);
+            }
+        };
         deviceAdapter.add("Remembered PCs");
         deviceSpinner.setAdapter(deviceAdapter);
         deviceSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
@@ -523,59 +538,114 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         return split;
     }
 
+    private void styleControlToggle(Button b, boolean on){
+        b.setTextColor(on?Color.rgb(228,239,255):Color.rgb(161,171,185));
+        b.setBackground(stateBg(
+                on?ACCENT_SOFT:Color.rgb(27,32,40),
+                on?Color.rgb(43,79,126):Color.rgb(42,49,59),
+                11,0));
+        b.setElevation(0);
+    }
+
     private void showControlCenter(View anchor){
         final PopupWindow popup=new PopupWindow(this);
         int screenWidth=getResources().getDisplayMetrics().widthPixels;
-        int width=Math.min(dp(430),Math.round(screenWidth*0.58f));
+        int screenHeight=getResources().getDisplayMetrics().heightPixels;
+        int width=Math.min(dp(420),Math.round(screenWidth*0.55f));
 
         ScrollView scroll=new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setVerticalScrollBarEnabled(false);
+
         LinearLayout panel=new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(16),dp(14),dp(16),dp(16));
-        panel.setBackground(bg(Color.rgb(18,22,29),18,Color.rgb(45,52,64)));
+        panel.setPadding(dp(14),dp(12),dp(14),dp(14));
+        panel.setBackground(gradient(
+                Color.rgb(20,24,31),
+                Color.rgb(12,15,20),
+                20,
+                Color.rgb(43,49,59)));
         scroll.addView(panel);
 
-        TextView title=textView("Control Center",16,TEXT,true);
-        panel.addView(title,new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,dp(34)));
+        LinearLayout header=row();
+        LinearLayout heading=new LinearLayout(this);
+        heading.setOrientation(LinearLayout.VERTICAL);
+        TextView title=textView("Control Center",15.5f,TEXT,true);
+        TextView subtitle=textView("WirelessKey 4.2.1 · Precision Edition",7.4f,MUTED,false);
+        heading.addView(title,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,0,1.15f));
+        heading.addView(subtitle,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,0,0.85f));
+        header.addView(heading,new LinearLayout.LayoutParams(0,dp(42),1f));
 
-        TextView connection=textView(
-                "PC  "+(hostInput==null?"":hostInput.getText().toString())+
-                        "    "+latencyText.getText().toString(),9,Color.rgb(151,171,194),false);
-        panel.addView(connection,new LinearLayout.LayoutParams(
+        Button close=button("Close",8.3f);
+        close.setElevation(0);
+        close.setBackground(stateBg(
+                Color.rgb(26,31,39),
+                Color.rgb(43,50,61),
+                11,0));
+        close.setOnClickListener(v->popup.dismiss());
+        header.addView(close,new LinearLayout.LayoutParams(dp(60),dp(32)));
+        panel.addView(header,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(42)));
+
+        LinearLayout connectionCard=card(15);
+        connectionCard.addView(eyebrow("CONNECTION"),new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(20)));
+
+        LinearLayout connStatus=row();
+        TextView pc=textView(
+                hostInput==null||hostInput.getText().toString().trim().isEmpty()
+                        ?"No PC selected":hostInput.getText().toString().trim(),
+                9.2f,TEXT,true);
+        TextView ping=textView(latencyText==null?"— ms":latencyText.getText().toString(),
+                8.2f,Color.rgb(126,191,255),true);
+        ping.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
+        connStatus.addView(pc,new LinearLayout.LayoutParams(0,dp(28),1f));
+        connStatus.addView(ping,new LinearLayout.LayoutParams(dp(62),dp(28)));
+        connectionCard.addView(connStatus,new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,dp(28)));
-
-        TextView section=textView("CONNECTION",8,Color.rgb(103,158,231),true);
-        panel.addView(section,new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,dp(24)));
 
         deviceSpinner = new Spinner(this);
         deviceSpinner.setAdapter(deviceAdapter);
-        deviceSpinner.setBackground(bg(Color.rgb(27,32,41),9,Color.rgb(47,55,67)));
-        panel.addView(deviceSpinner,new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,dp(38)));
+        deviceSpinner.setBackground(gradient(
+                Color.rgb(29,34,42),
+                Color.rgb(24,28,35),
+                10,
+                Color.rgb(45,52,62)));
+        connectionCard.addView(deviceSpinner,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(40)));
 
         LinearLayout connectRow=row();
-        Button connect=button("Connect",9);
-        Button qr=button("QR Pair",9);
-        Button find=button("Find PC",9);
-        Button manual=button("Manual",9);
-        Button[] connButtons={connect,qr,find,manual};
-        for(Button b:connButtons){
+        Button connect=button("Connect",8.7f);
+        Button qr=button("QR Pair",8.7f);
+        Button find=button("Find PC",8.7f);
+        Button manual=button("Manual",8.7f);
+        connect.setBackground(stateBg(ACCENT_SOFT,Color.rgb(43,79,126),10,0));
+        qr.setBackground(stateBg(Color.rgb(24,73,61),Color.rgb(31,94,77),10,0));
+        for(Button b:new Button[]{connect,qr,find,manual}){
+            b.setElevation(0);
             LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(36),1f);
             lp.leftMargin=dp(2);lp.rightMargin=dp(2);
             connectRow.addView(b,lp);
         }
         LinearLayout.LayoutParams crLp=new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,dp(36));
-        crLp.topMargin=dp(6);
-        panel.addView(connectRow,crLp);
+        crLp.topMargin=dp(7);
+        connectionCard.addView(connectRow,crLp);
+
+        LinearLayout.LayoutParams cardLp=new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT);
+        cardLp.topMargin=dp(10);
+        panel.addView(connectionCard,cardLp);
 
         connect.setOnClickListener(v->{
             String host=hostInput.getText().toString().trim();
             String code=codeInput.getText().toString().trim();
-            if(host.isEmpty()){showManualPairDialog();return;}
-            if(code.isEmpty()&&!link.hasTrustedTokenForHost(host)){showManualPairDialog();return;}
+            if(host.isEmpty()){popup.dismiss();showManualPairDialog();return;}
+            if(code.isEmpty()&&!link.hasTrustedTokenForHost(host)){
+                popup.dismiss();showManualPairDialog();return;
+            }
             link.connect(host,code);popup.dismiss();
         });
         qr.setOnClickListener(v->{popup.dismiss();startQrScan();});
@@ -586,92 +656,137 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         });
         manual.setOnClickListener(v->{popup.dismiss();showManualPairDialog();});
 
-        TextView pointerSec=textView("POINTER",8,Color.rgb(103,158,231),true);
-        LinearLayout.LayoutParams psLp=new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,dp(26));psLp.topMargin=dp(12);
-        panel.addView(pointerSec,psLp);
+        LinearLayout pointerCard=card(15);
+        pointerCard.addView(eyebrow("POINTER"),new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(20)));
 
         LinearLayout toggles=row();
-        Button precision=button(precisionMode?"Precision ON":"Precision OFF",8.5f);
-        Button natural=button(naturalScroll?"Natural ON":"Natural OFF",8.5f);
-        Button haptic=button(haptics?"Haptic ON":"Haptic OFF",8.5f);
+        Button precision=button(precisionMode?"Precision · On":"Precision",8.3f);
+        Button natural=button(naturalScroll?"Natural · On":"Natural",8.3f);
+        Button haptic=button(haptics?"Haptic · On":"Haptic",8.3f);
+        styleControlToggle(precision,precisionMode);
+        styleControlToggle(natural,naturalScroll);
+        styleControlToggle(haptic,haptics);
         for(Button b:new Button[]{precision,natural,haptic}){
-            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(35),1f);
-            lp.leftMargin=dp(2);lp.rightMargin=dp(2);toggles.addView(b,lp);
+            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(34),1f);
+            lp.leftMargin=dp(2);lp.rightMargin=dp(2);
+            toggles.addView(b,lp);
         }
-        panel.addView(toggles,new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,dp(35)));
+        pointerCard.addView(toggles,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(34)));
+
+        LinearLayout sensHeader=row();
+        TextView sensLabel=textView("Pointer sensitivity",8.7f,Color.rgb(184,194,207),false);
+        TextView sensValue=textView(String.format(java.util.Locale.US,"%.2fx",pointerSensitivity),
+                8.2f,Color.rgb(129,190,255),true);
+        sensValue.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
+        sensHeader.addView(sensLabel,new LinearLayout.LayoutParams(0,dp(25),1f));
+        sensHeader.addView(sensValue,new LinearLayout.LayoutParams(dp(54),dp(25)));
+        LinearLayout.LayoutParams shLp=new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(25));
+        shLp.topMargin=dp(8);
+        pointerCard.addView(sensHeader,shLp);
+
+        SeekBar sens=new SeekBar(this);
+        sens.setMax(195);
+        sens.setProgress(Math.round((pointerSensitivity-0.45f)*100f));
+        pointerCard.addView(sens,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(30)));
 
         precision.setOnClickListener(v->{
             precisionMode=!precisionMode;
             uiPrefs.edit().putBoolean("precision_mode",precisionMode).apply();
-            precision.setText(precisionMode?"Precision ON":"Precision OFF");
+            precision.setText(precisionMode?"Precision · On":"Precision");
+            styleControlToggle(precision,precisionMode);
             applyTouchpadSettings();
         });
         natural.setOnClickListener(v->{
             naturalScroll=!naturalScroll;
             uiPrefs.edit().putBoolean("natural_scroll",naturalScroll).apply();
-            natural.setText(naturalScroll?"Natural ON":"Natural OFF");
+            natural.setText(naturalScroll?"Natural · On":"Natural");
+            styleControlToggle(natural,naturalScroll);
             applyTouchpadSettings();
         });
         haptic.setOnClickListener(v->{
             haptics=!haptics;link.setHaptics(haptics);
-            haptic.setText(haptics?"Haptic ON":"Haptic OFF");
+            haptic.setText(haptics?"Haptic · On":"Haptic");
+            styleControlToggle(haptic,haptics);
         });
-
-        TextView sensLabel=textView("Pointer sensitivity",9,MUTED,false);
-        panel.addView(sensLabel,new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,dp(24)));
-        SeekBar sens=new SeekBar(this);
-        sens.setMax(195);
-        sens.setProgress(Math.round((pointerSensitivity-0.45f)*100f));
-        panel.addView(sens,new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,dp(34)));
         sens.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
             public void onStartTrackingTouch(SeekBar s){}
             public void onStopTrackingTouch(SeekBar s){}
             public void onProgressChanged(SeekBar s,int p,boolean user){
                 if(!user)return;
                 pointerSensitivity=0.45f+p/100f;
+                sensValue.setText(String.format(java.util.Locale.US,"%.2fx",pointerSensitivity));
                 uiPrefs.edit().putFloat("pointer_sensitivity",pointerSensitivity).apply();
                 applyTouchpadSettings();
             }
         });
+        LinearLayout.LayoutParams pointerLp=new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT);
+        pointerLp.topMargin=dp(9);
+        panel.addView(pointerCard,pointerLp);
 
-        TextView workspaceSec=textView("WORKSPACES",8,Color.rgb(103,158,231),true);
-        panel.addView(workspaceSec,new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,dp(28)));
+        LinearLayout workspaceCard=card(15);
+        workspaceCard.addView(eyebrow("WORKSPACES"),new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(20)));
         LinearLayout wsRow=row();
-        for(String ws:new String[]{"deck","pad","work","cad","media"}){
-            Button b=button(ws.toUpperCase(),7.8f);
-            b.setOnClickListener(v->{showWorkspace(ws);popup.dismiss();});
+        String[][] workspaces={{"Deck","deck"},{"Pad","pad"},{"Work","work"},{"CAD","cad"},{"Media","media"}};
+        for(String[] ws:workspaces){
+            Button b=button(ws[0],8f);
+            boolean active=ws[1].equals(currentWorkspace);
+            styleControlToggle(b,active);
+            b.setOnClickListener(v->{showWorkspace(ws[1]);popup.dismiss();});
             wsRow.addView(b,new LinearLayout.LayoutParams(0,dp(34),1f));
         }
-        panel.addView(wsRow,new LinearLayout.LayoutParams(
+        workspaceCard.addView(wsRow,new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,dp(34)));
+        LinearLayout.LayoutParams wsLp=new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT);
+        wsLp.topMargin=dp(9);
+        panel.addView(workspaceCard,wsLp);
 
+        LinearLayout diagnosticsCard=card(15);
+        diagnosticsCard.addView(eyebrow("INPUT HEALTH"),new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(20)));
         TextView diag=textView(
-                "Pointer coalesced  "+link.getCoalescedPointerEvents()+
-                        "    dropped  "+link.getDroppedPointerEvents(),8,MUTED,false);
-        LinearLayout.LayoutParams dgLp=new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,dp(30));dgLp.topMargin=dp(12);
-        panel.addView(diag,dgLp);
+                "Coalesced  "+link.getCoalescedPointerEvents()+
+                        "   ·   Dropped  "+link.getDroppedPointerEvents(),
+                8.3f,Color.rgb(156,167,181),false);
+        diagnosticsCard.addView(diag,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(25)));
 
-        Button disconnect=button("Disconnect",9);
-        disconnect.setBackground(stateBg(Color.rgb(80,33,40),Color.rgb(111,41,50),9,0));
+        Button disconnect=button("Disconnect PC",8.7f);
+        disconnect.setElevation(0);
+        disconnect.setTextColor(Color.rgb(255,196,202));
+        disconnect.setBackground(stateBg(
+                Color.rgb(62,31,37),
+                Color.rgb(86,39,47),
+                10,0));
         disconnect.setOnClickListener(v->{link.disconnect();popup.dismiss();});
-        LinearLayout.LayoutParams disLp=new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,dp(38));disLp.topMargin=dp(8);
-        panel.addView(disconnect,disLp);
+        LinearLayout.LayoutParams disconnectLp=new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(36));
+        disconnectLp.topMargin=dp(5);
+        diagnosticsCard.addView(disconnect,disconnectLp);
+        LinearLayout.LayoutParams dgLp=new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT);
+        dgLp.topMargin=dp(9);
+        panel.addView(diagnosticsCard,dgLp);
 
         popup.setContentView(scroll);
         popup.setWidth(width);
-        popup.setHeight(getResources().getDisplayMetrics().heightPixels-dp(18));
+        popup.setHeight(screenHeight-dp(18));
         popup.setFocusable(true);
         popup.setOutsideTouchable(true);
-        popup.setBackgroundDrawable(bg(Color.rgb(18,22,29),18,Color.rgb(45,52,64)));
-        popup.setElevation(dp(12));
+        popup.setBackgroundDrawable(bg(Color.TRANSPARENT,20,0));
+        popup.setElevation(dp(16));
         popup.setAnimationStyle(android.R.style.Animation_Dialog);
+        popup.setOnDismissListener(()->{
+            if(appRoot!=null)appRoot.animate().alpha(1f).setDuration(120).start();
+        });
+
+        if(appRoot!=null)appRoot.animate().alpha(0.78f).setDuration(120).start();
         popup.showAtLocation(appRoot,Gravity.RIGHT|Gravity.CENTER_VERTICAL,dp(9),0);
     }
 
