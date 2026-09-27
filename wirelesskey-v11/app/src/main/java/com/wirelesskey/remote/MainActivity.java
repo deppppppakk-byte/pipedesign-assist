@@ -678,6 +678,22 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         pointerCard.addView(eyebrow("POINTER"),new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,dp(20)));
 
+        LinearLayout presetRow=row();
+        Button presetPrecision=button("Precision",8.2f);
+        Button presetBalanced=button("Balanced",8.2f);
+        Button presetFast=button("Fast",8.2f);
+        for(Button b:new Button[]{presetPrecision,presetBalanced,presetFast}){
+            b.setElevation(0);
+            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(34),1f);
+            lp.leftMargin=dp(2);lp.rightMargin=dp(2);
+            presetRow.addView(b,lp);
+        }
+        styleControlToggle(presetPrecision,"precision".equals(pointerPreset));
+        styleControlToggle(presetBalanced,"balanced".equals(pointerPreset));
+        styleControlToggle(presetFast,"fast".equals(pointerPreset));
+        pointerCard.addView(presetRow,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(34)));
+
         LinearLayout toggles=row();
         Button precision=button(precisionMode?"Precision · On":"Precision",8.3f);
         Button natural=button(naturalScroll?"Natural · On":"Natural",8.3f);
@@ -711,9 +727,26 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         pointerCard.addView(sens,new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,dp(30)));
 
+        presetPrecision.setOnClickListener(v->{
+            applyPointerPreset("precision");
+            popup.dismiss();
+        });
+        presetBalanced.setOnClickListener(v->{
+            applyPointerPreset("balanced");
+            popup.dismiss();
+        });
+        presetFast.setOnClickListener(v->{
+            applyPointerPreset("fast");
+            popup.dismiss();
+        });
+
         precision.setOnClickListener(v->{
             precisionMode=!precisionMode;
-            uiPrefs.edit().putBoolean("precision_mode",precisionMode).apply();
+            pointerPreset="custom";
+            uiPrefs.edit()
+                    .putString("pointer_preset","custom")
+                    .putBoolean("precision_mode",precisionMode)
+                    .apply();
             precision.setText(precisionMode?"Precision · On":"Precision");
             styleControlToggle(precision,precisionMode);
             applyTouchpadSettings();
@@ -736,8 +769,12 @@ public class MainActivity extends Activity implements SecureLink.Listener {
             public void onProgressChanged(SeekBar s,int p,boolean user){
                 if(!user)return;
                 pointerSensitivity=0.45f+p/100f;
+                pointerPreset="custom";
                 sensValue.setText(String.format(java.util.Locale.US,"%.2fx",pointerSensitivity));
-                uiPrefs.edit().putFloat("pointer_sensitivity",pointerSensitivity).apply();
+                uiPrefs.edit()
+                        .putString("pointer_preset","custom")
+                        .putFloat("pointer_sensitivity",pointerSensitivity)
+                        .apply();
                 applyTouchpadSettings();
             }
         });
@@ -760,6 +797,31 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         }
         workspaceCard.addView(wsRow,new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,dp(34)));
+
+        if(activeSplit!=null){
+            TextView layoutLabel=eyebrow("MULTI-PANE LAYOUT");
+            LinearLayout.LayoutParams labelLp=new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,dp(22));
+            labelLp.topMargin=dp(7);
+            workspaceCard.addView(layoutLabel,labelLp);
+
+            LinearLayout layoutRow=row();
+            Button keyboardFocus=button("Keyboard Focus",7.9f);
+            Button balanced=button("Balanced",7.9f);
+            Button padFocus=button("Pad Focus",7.9f);
+            for(Button b:new Button[]{keyboardFocus,balanced,padFocus}){
+                b.setElevation(0);
+                LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(33),1f);
+                lp.leftMargin=dp(2);lp.rightMargin=dp(2);
+                layoutRow.addView(b,lp);
+            }
+            keyboardFocus.setOnClickListener(v->{applyLayoutPreset(0.78f);popup.dismiss();});
+            balanced.setOnClickListener(v->{applyLayoutPreset(0.66f);popup.dismiss();});
+            padFocus.setOnClickListener(v->{applyLayoutPreset(0.52f);popup.dismiss();});
+            workspaceCard.addView(layoutRow,new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,dp(33)));
+        }
+
         LinearLayout.LayoutParams wsLp=new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT);
         wsLp.topMargin=dp(9);
@@ -805,7 +867,15 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         });
 
         if(appRoot!=null)appRoot.animate().alpha(0.78f).setDuration(120).start();
+        scroll.setAlpha(0.55f);
+        scroll.setTranslationX(dp(34));
         popup.showAtLocation(appRoot,Gravity.RIGHT|Gravity.CENTER_VERTICAL,dp(9),0);
+        scroll.animate()
+                .alpha(1f)
+                .translationX(0f)
+                .setDuration(180)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                .start();
     }
 
     private void applyTouchpadSettings(){
