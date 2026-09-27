@@ -96,7 +96,9 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     private float scrollSpeed = 1.0f;
     private boolean precisionMode = false;
     private boolean naturalScroll = false;
+    private String pointerPreset = "custom";
     private TouchpadView activeTouchpad;
+    private ResizableSplitLayout activeSplit;
 
     private static final class KeySpec {
         final String key;
@@ -140,6 +142,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         scrollSpeed = uiPrefs.getFloat("scroll_speed", 1.0f);
         precisionMode = uiPrefs.getBoolean("precision_mode", false);
         naturalScroll = uiPrefs.getBoolean("natural_scroll", false);
+        pointerPreset = uiPrefs.getString("pointer_preset", "custom");
         currentWorkspace = uiPrefs.getString("workspace", "deck");
 
         appRoot = buildUi();
@@ -466,6 +469,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         uiPrefs.edit().putString("workspace",currentWorkspace).apply();
         workspaceHost.removeAllViews();
         activeTouchpad=null;
+        activeSplit=null;
 
         View content;
         switch(currentWorkspace){
@@ -475,14 +479,23 @@ public class MainActivity extends Activity implements SecureLink.Listener {
             case "media": content=buildMediaWorkspace(); break;
             default: currentWorkspace="deck"; content=buildDeckWorkspace(); break;
         }
+        content.setAlpha(0f);
+        content.setTranslationY(dp(8));
         workspaceHost.addView(content,new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
+        content.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(150)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                .start();
         updateWorkspaceButtons();
     }
 
     private View buildDeckWorkspace(){
         ResizableSplitLayout split=new ResizableSplitLayout(this);
+        activeSplit=split;
         float ratio=uiPrefs.getFloat("ratio_deck",0.72f);
         split.setPanels(buildKeyboard(),buildMousePanel(),ratio);
         split.setOnRatioChangedListener(r->uiPrefs.edit().putFloat("ratio_deck",r).apply());
@@ -503,6 +516,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         productivity.addView(clipboard,clipLp);
 
         ResizableSplitLayout split=new ResizableSplitLayout(this);
+        activeSplit=split;
         float ratio=uiPrefs.getFloat("ratio_work",0.66f);
         split.setPanels(buildKeyboard(),productivity,ratio);
         split.setOnRatioChangedListener(r->uiPrefs.edit().putFloat("ratio_work",r).apply());
@@ -524,6 +538,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         tools.addView(shortcuts,shortLp);
 
         ResizableSplitLayout split=new ResizableSplitLayout(this);
+        activeSplit=split;
         float ratio=uiPrefs.getFloat("ratio_cad",0.62f);
         split.setPanels(buildKeyboard(),tools,ratio);
         split.setOnRatioChangedListener(r->uiPrefs.edit().putFloat("ratio_cad",r).apply());
@@ -532,6 +547,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
 
     private View buildMediaWorkspace(){
         ResizableSplitLayout split=new ResizableSplitLayout(this);
+        activeSplit=split;
         float ratio=uiPrefs.getFloat("ratio_media",0.72f);
         split.setPanels(buildMousePanel(),buildMediaPanel(),ratio);
         split.setOnRatioChangedListener(r->uiPrefs.edit().putFloat("ratio_media",r).apply());
