@@ -655,6 +655,9 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     }
 
     private LinearLayout buildKeyboard() {
+        printableBindings.clear();
+        modifierButtons.clear();
+
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
 
@@ -846,24 +849,47 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     }
 
     private View buildMousePanel(){
-        LinearLayout p=new LinearLayout(this);p.setOrientation(LinearLayout.VERTICAL);
+        return buildMousePanel(false);
+    }
+
+    private View buildMousePanel(boolean forcePrecision){
+        LinearLayout p=new LinearLayout(this);
+        p.setOrientation(LinearLayout.VERTICAL);
+        p.setPadding(dp(1),dp(1),dp(1),dp(1));
+
         TouchpadView pad=new TouchpadView(this);
+        activeTouchpad=pad;
+        pad.setSensitivity(pointerSensitivity);
+        pad.setScrollSpeed(scrollSpeed);
+        pad.setNaturalScroll(naturalScroll);
+        pad.setPrecisionMode(forcePrecision||precisionMode);
         pad.setSender(new TouchpadView.Sender() {
             @Override public void send(JSONObject event){link.send(event);}
+            @Override public void move(float dx,float dy,long eventNanos){
+                link.sendPointerMove(dx,dy,eventNanos);
+            }
+            @Override public void scroll(boolean horizontal,float delta,long eventNanos){
+                link.sendPointerScroll(horizontal,delta,eventNanos);
+            }
             @Override public void haptic(){MainActivity.this.haptic();}
         });
-        p.addView(pad,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,0,1f));
+        p.addView(pad,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,0,1f));
 
         LinearLayout buttons=row();
-        Button left=button("Left",9),right=button("Right",9),middle=button("Middle",9);
+        Button left=button("Left click",8.4f),right=button("Right click",8.4f);
+        left.setBackground(stateBg(Color.rgb(24,29,36),Color.rgb(42,49,59),8,0));
+        right.setBackground(stateBg(Color.rgb(24,29,36),Color.rgb(42,49,59),8,0));
         left.setOnClickListener(v->{haptic();sendMouse("left","click");});
         right.setOnClickListener(v->{haptic();sendMouse("right","click");});
-        middle.setOnClickListener(v->{haptic();sendMouse("middle","click");});
-        buttons.addView(left,new LinearLayout.LayoutParams(0,dp(34),1f));
-        buttons.addView(right,new LinearLayout.LayoutParams(0,dp(34),1f));
-        buttons.addView(middle,new LinearLayout.LayoutParams(0,dp(34),1f));
-        LinearLayout.LayoutParams blp=new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,dp(34));
-        blp.topMargin=dp(4);p.addView(buttons,blp);
+        buttons.addView(left,new LinearLayout.LayoutParams(0,dp(29),1f));
+        LinearLayout.LayoutParams rightLp=new LinearLayout.LayoutParams(0,dp(29),1f);
+        rightLp.leftMargin=dp(4);
+        buttons.addView(right,rightLp);
+        LinearLayout.LayoutParams blp=new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(29));
+        blp.topMargin=dp(4);
+        p.addView(buttons,blp);
         return p;
     }
 
