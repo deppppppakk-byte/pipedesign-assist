@@ -1,12 +1,9 @@
 package com.wirelesskey.remote;
 
-import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
-import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -39,8 +36,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.zxing.integration.android.IntentIntegrator;
-import com.google.zxing.integration.android.IntentResult;
+import com.google.android.gms.tasks.Task;
+import com.google.mlkit.vision.barcode.common.Barcode;
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanner;
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions;
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning;
+
 
 public class MainActivity extends Activity implements SecureLink.Listener {
     private static final int BG = Color.rgb(8,17,31);
@@ -55,7 +56,6 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private SecureLink link;
 
-    private static final int CAMERA_REQUEST = 4101;
     private EditText hostInput, codeInput;
     private Button connectButton, hapticButton;
     private TextView statusText, appText, latencyText;
@@ -219,7 +219,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         bar.setBackground(bg(PANEL,11,Color.rgb(29,43,64)));
         bar.setElevation(dp(1.5f));
 
-        TextView brand = textView("WirelessKey 4.1.1", compact?10.5f:12f, TEXT, true);
+        TextView brand = textView("WirelessKey 4.1.2", compact?10.5f:12f, TEXT, true);
         brand.setGravity(Gravity.CENTER_VERTICAL);
         bar.addView(brand, new LinearLayout.LayoutParams(dp(compact?94:118), LinearLayout.LayoutParams.MATCH_PARENT));
 
@@ -396,54 +396,36 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     }
 
     private void startQrScan() {
-        if (android.os.Build.VERSION.SDK_INT >= 23
-                && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.CAMERA}, CAMERA_REQUEST);
-            onStatus("discovering","Camera permission needed for QR pairing");
-            return;
-        }
-        launchQrScanner();
-    }
+        onStatus("discovering","Opening secure QR scanner...");
 
-    private void launchQrScanner(){
-        IntentIntegrator integrator = new IntentIntegrator(this);
-        integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE);
-        integrator.setPrompt("Scan the WirelessKey pairing QR on your PC");
-        integrator.setBeepEnabled(false);
-        integrator.setBarcodeImageEnabled(false);
-        integrator.setOrientationLocked(false);
-        integrator.setCameraId(0);
-        integrator.initiateScan();
-    }
+        GmsBarcodeScannerOptions options = new GmsBarcodeScannerOptions.Builder()
+                .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+                .enableAutoZoom()
+                .build();
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode,permissions,grantResults);
-        if(requestCode==CAMERA_REQUEST){
-            if(grantResults.length>0&&grantResults[0]==PackageManager.PERMISSION_GRANTED){
-                launchQrScanner();
-            }else{
-                onStatus("error","Camera permission denied · use Find PC or Manual");
-            }
-        }
-    }
+        GmsBarcodeScanner scanner = GmsBarcodeScanning.getClient(this, options);
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        IntentResult result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data);
-        if (result != null) {
-            String contents = result.getContents();
-            if (contents == null || contents.trim().isEmpty()) {
-                onStatus("offline","QR scan cancelled");
-                return;
-            }
+        scanner.startScan()
+                .addOnSuccessListener(barcode -> {
+                    String contents = barcode.getRawValue();
+                    if (contents == null || contents.trim().isEmpty()) {
+                        onStatus("error","QR code contained no pairing data");
+                        return;
+                    }
 
-            onStatus("discovering","QR scanned · verifying PC identity...");
-            link.connectPairingQr(contents.trim());
-            handler.postDelayed(this::reloadKnownPeersIntoSpinner,450);
-            return;
-        }
-        super.onActivityResult(requestCode, resultCode, data);
+                    onStatus("discovering","QR scanned · verifying PC identity...");
+                    link.connectPairingQr(contents.trim());
+                    handler.postDelayed(this::reloadKnownPeersIntoSpinner,450);
+                })
+                .addOnCanceledListener(() ->
+                        onStatus("offline","QR scan cancelled"))
+                .addOnFailureListener(error -> {
+                    String detail = error == null ? "" : String.valueOf(error.getMessage());
+                    onStatus("error","QR scanner unavailable · use Find PC or Manual");
+                    if (detail != null && !detail.trim().isEmpty()) {
+                        android.util.Log.e("WirelessKey","Google Code Scanner failed: "+detail);
+                    }
+                });
     }
 
     private void reloadKnownPeersIntoSpinner() {
