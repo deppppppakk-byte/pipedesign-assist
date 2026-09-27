@@ -1,7 +1,9 @@
 package com.wirelesskey.remote;
 
 import android.content.Context;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -12,7 +14,7 @@ public final class ResizableSplitLayout extends LinearLayout {
         void onRatioChanged(float ratio);
     }
 
-    private final View divider;
+    private final DividerHandle divider;
     private View first;
     private View second;
     private float ratio = 0.70f;
@@ -25,8 +27,7 @@ public final class ResizableSplitLayout extends LinearLayout {
         setOrientation(HORIZONTAL);
         setGravity(Gravity.CENTER_VERTICAL);
 
-        divider = new View(context);
-        divider.setBackgroundColor(Color.rgb(38,44,54));
+        divider = new DividerHandle(context);
         divider.setOnTouchListener(this::onDividerTouch);
     }
 
@@ -42,9 +43,9 @@ public final class ResizableSplitLayout extends LinearLayout {
 
         addView(first, new LayoutParams(0, LayoutParams.MATCH_PARENT, ratio));
 
-        LayoutParams dividerLp = new LayoutParams(dp(8), LayoutParams.MATCH_PARENT);
-        dividerLp.leftMargin = dp(3);
-        dividerLp.rightMargin = dp(3);
+        LayoutParams dividerLp = new LayoutParams(dp(10), LayoutParams.MATCH_PARENT);
+        dividerLp.leftMargin = dp(2);
+        dividerLp.rightMargin = dp(2);
         addView(divider, dividerLp);
 
         addView(second, new LayoutParams(0, LayoutParams.MATCH_PARENT, 1f-ratio));
@@ -61,7 +62,7 @@ public final class ResizableSplitLayout extends LinearLayout {
             case MotionEvent.ACTION_DOWN:
                 downX = event.getRawX();
                 startRatio = ratio;
-                v.setBackgroundColor(Color.rgb(61,112,191));
+                divider.setActive(true);
                 return true;
 
             case MotionEvent.ACTION_MOVE:
@@ -72,7 +73,7 @@ public final class ResizableSplitLayout extends LinearLayout {
 
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
-                v.setBackgroundColor(Color.rgb(38,44,54));
+                divider.setActive(false);
                 if (ratioListener != null) ratioListener.onRatioChanged(ratio);
                 return true;
         }
@@ -94,5 +95,35 @@ public final class ResizableSplitLayout extends LinearLayout {
 
     private int dp(float value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private static final class DividerHandle extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final float density;
+        private boolean active;
+
+        DividerHandle(Context context) {
+            super(context);
+            density = getResources().getDisplayMetrics().density;
+            setClickable(true);
+        }
+
+        void setActive(boolean value) {
+            active = value;
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            paint.setColor(active ? Color.rgb(91,145,230) : Color.rgb(48,56,67));
+            float w = active ? 2.4f*density : 1.4f*density;
+            float cx = getWidth()/2f;
+            float top = getHeight()*0.35f;
+            float bottom = getHeight()*0.65f;
+            canvas.drawRoundRect(
+                    cx-w/2f, top, cx+w/2f, bottom,
+                    w, w, paint);
+        }
     }
 }
