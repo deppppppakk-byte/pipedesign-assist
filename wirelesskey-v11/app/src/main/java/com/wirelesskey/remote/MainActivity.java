@@ -322,6 +322,61 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         return bar;
     }
 
+    private void startQrScan() {
+        IntentIntegrator integrator = new IntentIntegrator(this);
+        integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE);
+        integrator.setPrompt("Scan the WirelessKey QR shown on your PC");
+        integrator.setBeepEnabled(false);
+        integrator.setOrientationLocked(false);
+        integrator.initiateScan();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        IntentResult result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data);
+        if (result != null) {
+            String contents = result.getContents();
+            if (contents != null && !contents.trim().isEmpty()) {
+                try {
+                    JSONObject peer = link.importPairingQr(contents.trim());
+                    String host = peer.optString("host", "");
+                    String code = peer.optString("code", "");
+                    hostInput.setText(host);
+                    codeInput.setText(code);
+                    reloadKnownPeersIntoSpinner();
+                    onStatus("connecting", "QR verified · connecting...");
+                    link.connect(host, code);
+                } catch (Exception e) {
+                    onStatus("error", "Invalid WirelessKey QR");
+                }
+            }
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    private void reloadKnownPeersIntoSpinner() {
+        if (deviceAdapter == null) return;
+        deviceHosts.clear();
+        deviceAdapter.clear();
+        deviceAdapter.add("Remembered PCs");
+
+        try {
+            JSONArray arr = new JSONArray(link.loadKnownPeersJson());
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject peer = arr.optJSONObject(i);
+                if (peer == null) continue;
+                String host = peer.optString("host", "");
+                String name = peer.optString("name", "WirelessKey PC");
+                if (host.isEmpty()) continue;
+                deviceHosts.add(host);
+                deviceAdapter.add(name + " · " + host);
+            }
+        } catch (Exception ignored) {
+        }
+        deviceAdapter.notifyDataSetChanged();
+    }
+
     private LinearLayout buildKeyboard() {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
