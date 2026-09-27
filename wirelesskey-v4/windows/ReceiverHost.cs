@@ -143,6 +143,11 @@ internal sealed class ReceiverHost : IAsyncDisposable
 
         request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, false));
         request.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(request.PublicKey, false));
+        var san = new SubjectAlternativeNameBuilder();
+        san.AddDnsName(Environment.MachineName);
+        san.AddDnsName("localhost");
+        san.AddIpAddress(IPAddress.Loopback);
+        request.CertificateExtensions.Add(san.Build());
 
         using var cert = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(10));
         var pfx = cert.Export(X509ContentType.Pfx);
