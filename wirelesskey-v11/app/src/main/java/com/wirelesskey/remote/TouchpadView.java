@@ -20,6 +20,7 @@ public final class TouchpadView extends View {
         void send(JSONObject event);
         void move(float dx, float dy, long eventNanos);
         void scroll(boolean horizontal, float delta, long eventNanos);
+        void cancelMotion();
         void haptic();
     }
 
@@ -390,6 +391,7 @@ public final class TouchpadView extends View {
             final long elapsed = SystemClock.uptimeMillis()-downAt;
             pointers.remove(id);
             pendingDx = pendingDy = 0f;
+            if (before == 1 && sender != null) sender.cancelMotion();
             invalidate();
 
             if (suppressUntilClear) {
