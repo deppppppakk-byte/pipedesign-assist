@@ -1277,6 +1277,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
             @Override public void scroll(boolean horizontal,float delta,long eventNanos){
                 link.sendPointerScroll(horizontal,delta,eventNanos);
             }
+            @Override public void cancelMotion(){link.cancelPointerMotion();}
             @Override public void haptic(){MainActivity.this.haptic();}
         });
         p.addView(pad,new LinearLayout.LayoutParams(
