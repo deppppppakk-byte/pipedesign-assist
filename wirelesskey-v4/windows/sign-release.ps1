@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$CertificatePath,
     [Parameter(Mandatory=$true)][string]$TimestampUrl,
     [string]$ReceiverPath = ".\publish\WirelessKeyReceiver.exe",
-    [string]$SetupPath = ".\installer-output\WirelessKeySetup.exe"
+    [string]$SetupPath = ".\installer\output\WirelessKeySetup-4.5.exe"
 )
 
 $ErrorActionPreference = "Stop"
