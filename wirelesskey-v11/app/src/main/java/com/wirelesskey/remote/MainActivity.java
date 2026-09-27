@@ -210,16 +210,56 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     }
 
     private View buildTopBar() {
+        final boolean compact = getResources().getConfiguration().screenWidthDp < 780;
+
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setPadding(dp(5),dp(3),dp(5),dp(3));
-        bar.setBackground(bg(PANEL,10,Color.rgb(29,43,64)));
+        bar.setPadding(dp(6),dp(3),dp(6),dp(3));
+        bar.setBackground(bg(PANEL,11,Color.rgb(29,43,64)));
+        bar.setElevation(dp(1.5f));
 
-        TextView brand = textView("WirelessKey 4.1", 12, TEXT, true);
-        bar.addView(brand, new LinearLayout.LayoutParams(dp(105), LinearLayout.LayoutParams.MATCH_PARENT));
+        TextView brand = textView("WirelessKey 4.1.1", compact?10.5f:12f, TEXT, true);
+        brand.setGravity(Gravity.CENTER_VERTICAL);
+        bar.addView(brand, new LinearLayout.LayoutParams(dp(compact?94:118), LinearLayout.LayoutParams.MATCH_PARENT));
 
-        Button find = button("Find PC", 9);
+        deviceSpinner = new Spinner(this);
+        deviceAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, new ArrayList<String>()) {
+            private TextView style(TextView t, boolean dropdown) {
+                t.setTextColor(TEXT);
+                t.setTextSize(dropdown?10:9);
+                t.setPadding(dp(8),0,dp(8),0);
+                t.setGravity(Gravity.CENTER_VERTICAL);
+                if(dropdown) t.setBackgroundColor(PANEL);
+                return t;
+            }
+            @Override
+            public View getView(int position, View convertView, android.view.ViewGroup parent) {
+                return style((TextView)super.getView(position,convertView,parent),false);
+            }
+            @Override
+            public View getDropDownView(int position, View convertView, android.view.ViewGroup parent) {
+                return style((TextView)super.getDropDownView(position,convertView,parent),true);
+            }
+        };
+        deviceAdapter.add("Remembered PCs");
+        deviceSpinner.setAdapter(deviceAdapter);
+        deviceSpinner.setBackground(bg(Color.rgb(9,19,33),8,BORDER));
+        deviceSpinner.setPopupBackgroundDrawable(bg(PANEL,7,BORDER));
+        deviceSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                if (position > 0 && position-1 < deviceHosts.size()) {
+                    hostInput.setText(deviceHosts.get(position-1));
+                    codeInput.setText("");
+                }
+            }
+        });
+        LinearLayout.LayoutParams spinnerLp = new LinearLayout.LayoutParams(dp(compact?118:160), dp(30));
+        spinnerLp.leftMargin=dp(3);
+        bar.addView(deviceSpinner, spinnerLp);
+
+        Button find = button(compact?"Find":"Find PC", 8.5f);
         find.setOnClickListener(v -> {
             haptic();
             deviceHosts.clear();
@@ -229,87 +269,54 @@ public class MainActivity extends Activity implements SecureLink.Listener {
             link.discover();
             onStatus("discovering","Finding PCs...");
         });
-        bar.addView(find, new LinearLayout.LayoutParams(dp(67), dp(29)));
+        LinearLayout.LayoutParams findLp=new LinearLayout.LayoutParams(dp(compact?48:62),dp(30));
+        findLp.leftMargin=dp(3);
+        bar.addView(find,findLp);
 
         Button qr = button("QR", 9);
-        qr.setOnClickListener(v -> {
-            haptic();
-            startQrScan();
-        });
-        LinearLayout.LayoutParams qrLp = new LinearLayout.LayoutParams(dp(44), dp(29));
-        qrLp.leftMargin = dp(4);
+        qr.setBackground(stateBg(Color.rgb(6,95,70),Color.rgb(5,122,85),7,Color.rgb(16,185,129)));
+        qr.setOnClickListener(v -> { haptic(); startQrScan(); });
+        LinearLayout.LayoutParams qrLp = new LinearLayout.LayoutParams(dp(44), dp(30));
+        qrLp.leftMargin = dp(3);
         bar.addView(qr, qrLp);
 
-        deviceSpinner = new Spinner(this);
-        deviceAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, new ArrayList<>());
-        deviceAdapter.add("Remembered PCs");
-        deviceSpinner.setAdapter(deviceAdapter);
-        deviceSpinner.setBackground(bg(Color.rgb(9,19,33),7,BORDER));
-        deviceSpinner.setPopupBackgroundDrawable(bg(PANEL,6,BORDER));
-        deviceSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
-            @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
-                if (position > 0 && position-1 < deviceHosts.size()) {
-                    hostInput.setText(deviceHosts.get(position-1));
-                }
-            }
-        });
-        LinearLayout.LayoutParams spinnerLp = new LinearLayout.LayoutParams(dp(130), dp(29));
-        spinnerLp.leftMargin=dp(4);
-        bar.addView(deviceSpinner, spinnerLp);
-
         hostInput = new EditText(this);
-        hostInput.setText(link.loadHost().replace(":8765",""));
-        hostInput.setHint("PC IP");
-        hostInput.setHintTextColor(MUTED);
-        hostInput.setTextColor(TEXT);
-        hostInput.setTextSize(9);
-        hostInput.setSingleLine(true);
-        hostInput.setPadding(dp(7),0,dp(7),0);
-        hostInput.setBackground(bg(Color.rgb(9,19,33),7,BORDER));
-        LinearLayout.LayoutParams hostLp = new LinearLayout.LayoutParams(dp(115), dp(29));
-        hostLp.leftMargin=dp(4);
-        bar.addView(hostInput, hostLp);
-
+        hostInput.setText(link.loadHost());
         codeInput = new EditText(this);
         codeInput.setText(link.loadCode());
-        codeInput.setHint("Code");
-        codeInput.setHintTextColor(MUTED);
-        codeInput.setTextColor(TEXT);
-        codeInput.setTextSize(9);
-        codeInput.setSingleLine(true);
-        codeInput.setInputType(InputType.TYPE_CLASS_NUMBER);
-        codeInput.setGravity(Gravity.CENTER);
-        codeInput.setPadding(dp(4),0,dp(4),0);
-        codeInput.setBackground(bg(Color.rgb(9,19,33),7,BORDER));
-        LinearLayout.LayoutParams codeLp = new LinearLayout.LayoutParams(dp(60), dp(29));
-        codeLp.leftMargin=dp(4);
-        bar.addView(codeInput, codeLp);
 
-        connectButton = button("Connect",9);
-        connectButton.setBackground(bg(ACCENT,7,Color.rgb(59,130,246)));
+        Button manual = button(compact?"IP":"Manual",8);
+        manual.setOnClickListener(v->{haptic();showManualPairDialog();});
+        LinearLayout.LayoutParams manLp=new LinearLayout.LayoutParams(dp(compact?42:58),dp(30));
+        manLp.leftMargin=dp(3);
+        bar.addView(manual,manLp);
+
+        connectButton = button("Connect",8.5f);
+        connectButton.setBackground(stateBg(ACCENT,Color.rgb(29,78,216),7,Color.rgb(59,130,246)));
         connectButton.setOnClickListener(v -> {
             haptic();
             String host=hostInput.getText().toString().trim();
             String code=codeInput.getText().toString().trim();
-            if (host.isEmpty()) { onStatus("error","Find or enter PC"); return; }
-            if (code.length()!=6) { onStatus("error","Enter 6-digit code"); return; }
+            if (host.isEmpty()) {
+                showManualPairDialog();
+                return;
+            }
             link.connect(host,code);
         });
-        LinearLayout.LayoutParams conLp = new LinearLayout.LayoutParams(dp(66),dp(29));
-        conLp.leftMargin=dp(4);
+        LinearLayout.LayoutParams conLp = new LinearLayout.LayoutParams(dp(compact?60:70),dp(30));
+        conLp.leftMargin=dp(3);
         bar.addView(connectButton,conLp);
 
-        hapticButton = button("Haptic",8);
-        hapticButton.setBackground(bg(haptics?Color.rgb(22,78,99):KEY,7,BORDER));
+        hapticButton = button(compact?"Hap":"Haptic",8);
+        updateHapticButtonStyle();
         hapticButton.setOnClickListener(v -> {
             haptics=!haptics;
             link.setHaptics(haptics);
-            hapticButton.setBackground(bg(haptics?Color.rgb(22,78,99):KEY,7,BORDER));
+            updateHapticButtonStyle();
             if (haptics) v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
         });
-        LinearLayout.LayoutParams hapLp = new LinearLayout.LayoutParams(dp(58),dp(29));
-        hapLp.leftMargin=dp(4);
+        LinearLayout.LayoutParams hapLp = new LinearLayout.LayoutParams(dp(compact?42:56),dp(30));
+        hapLp.leftMargin=dp(3);
         bar.addView(hapticButton,hapLp);
 
         LinearLayout context = new LinearLayout(this);
@@ -318,15 +325,20 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         context.setPadding(dp(7),0,dp(7),0);
         context.setBackground(bg(Color.rgb(12,23,40),20,Color.rgb(43,65,94)));
         appText=textView("Desktop",8,Color.rgb(219,234,254),true);
-        latencyText=textView("— ms",8,Color.rgb(125,211,252),false);
+        appText.setMaxLines(1);
+        appText.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        latencyText=textView("— ms",7.5f,Color.rgb(125,211,252),false);
+        latencyText.setGravity(Gravity.CENTER_VERTICAL|Gravity.RIGHT);
         context.addView(appText,new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f));
-        context.addView(latencyText,new LinearLayout.LayoutParams(dp(40),LinearLayout.LayoutParams.MATCH_PARENT));
-        LinearLayout.LayoutParams ctxLp = new LinearLayout.LayoutParams(dp(128),dp(25));
+        context.addView(latencyText,new LinearLayout.LayoutParams(dp(compact?36:42),LinearLayout.LayoutParams.MATCH_PARENT));
+        LinearLayout.LayoutParams ctxLp = new LinearLayout.LayoutParams(dp(compact?104:132),dp(25));
         ctxLp.leftMargin=dp(4);
         bar.addView(context,ctxLp);
 
-        statusText=textView("Offline",8,MUTED,false);
+        statusText=textView("Offline",7.7f,MUTED,false);
         statusText.setGravity(Gravity.CENTER);
+        statusText.setMaxLines(1);
+        statusText.setEllipsize(android.text.TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams stLp = new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f);
         stLp.leftMargin=dp(4);
         bar.addView(statusText,stLp);
@@ -334,13 +346,81 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         return bar;
     }
 
+    private void updateHapticButtonStyle(){
+        if(hapticButton==null)return;
+        int normal=haptics?Color.rgb(15,78,92):KEY;
+        int pressed=haptics?Color.rgb(14,116,144):Color.rgb(43,61,84);
+        hapticButton.setBackground(stateBg(normal,pressed,7,BORDER));
+    }
+
+    private void showManualPairDialog(){
+        LinearLayout box=new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(16),dp(6),dp(16),0);
+
+        EditText host=new EditText(this);
+        host.setHint("PC IP or IP:port");
+        host.setSingleLine(true);
+        host.setText(hostInput==null?"":hostInput.getText().toString());
+        box.addView(host,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,dp(50)));
+
+        EditText code=new EditText(this);
+        code.setHint("6-digit code (not needed for a trusted PC)");
+        code.setInputType(InputType.TYPE_CLASS_NUMBER);
+        code.setSingleLine(true);
+        code.setText(codeInput==null?"":codeInput.getText().toString());
+        box.addView(code,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,dp(50)));
+
+        new AlertDialog.Builder(this)
+                .setTitle("Manual PC connection")
+                .setMessage("QR pairing is recommended. Use this only when discovery/QR is unavailable.")
+                .setView(box)
+                .setPositiveButton("Connect",(d,w)->{
+                    String h=host.getText().toString().trim();
+                    String p=code.getText().toString().trim();
+                    if(h.isEmpty()){
+                        onStatus("error","Enter the PC address");
+                        return;
+                    }
+                    hostInput.setText(h);
+                    codeInput.setText(p);
+                    link.connect(h,p);
+                })
+                .setNegativeButton("Cancel",null)
+                .show();
+    }
+
     private void startQrScan() {
+        if (android.os.Build.VERSION.SDK_INT >= 23
+                && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.CAMERA}, CAMERA_REQUEST);
+            onStatus("discovering","Camera permission needed for QR pairing");
+            return;
+        }
+        launchQrScanner();
+    }
+
+    private void launchQrScanner(){
         IntentIntegrator integrator = new IntentIntegrator(this);
         integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE);
-        integrator.setPrompt("Scan the WirelessKey QR shown on your PC");
+        integrator.setPrompt("Scan the WirelessKey pairing QR on your PC");
         integrator.setBeepEnabled(false);
+        integrator.setBarcodeImageEnabled(false);
         integrator.setOrientationLocked(false);
+        integrator.setCameraId(0);
         integrator.initiateScan();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode,permissions,grantResults);
+        if(requestCode==CAMERA_REQUEST){
+            if(grantResults.length>0&&grantResults[0]==PackageManager.PERMISSION_GRANTED){
+                launchQrScanner();
+            }else{
+                onStatus("error","Camera permission denied · use Find PC or Manual");
+            }
+        }
     }
 
     @Override
@@ -348,20 +428,14 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         IntentResult result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data);
         if (result != null) {
             String contents = result.getContents();
-            if (contents != null && !contents.trim().isEmpty()) {
-                try {
-                    JSONObject peer = link.importPairingQr(contents.trim());
-                    String host = peer.optString("host", "");
-                    String code = peer.optString("code", "");
-                    hostInput.setText(host);
-                    codeInput.setText(code);
-                    reloadKnownPeersIntoSpinner();
-                    onStatus("connecting", "QR verified · connecting...");
-                    link.connect(host, code);
-                } catch (Exception e) {
-                    onStatus("error", "Invalid WirelessKey QR");
-                }
+            if (contents == null || contents.trim().isEmpty()) {
+                onStatus("offline","QR scan cancelled");
+                return;
             }
+
+            onStatus("discovering","QR scanned · verifying PC identity...");
+            link.connectPairingQr(contents.trim());
+            handler.postDelayed(this::reloadKnownPeersIntoSpinner,450);
             return;
         }
         super.onActivityResult(requestCode, resultCode, data);
