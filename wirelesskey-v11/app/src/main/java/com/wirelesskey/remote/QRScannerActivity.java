@@ -175,7 +175,7 @@ public final class QRScannerActivity extends ComponentActivity {
         });
     }
 
-    @androidx.camera.core.ExperimentalGetImage
+    @androidx.annotation.OptIn(markerClass = androidx.camera.core.ExperimentalGetImage.class)
     private void startCamera() {
         if (completed.get() || isFinishing()) return;
 
