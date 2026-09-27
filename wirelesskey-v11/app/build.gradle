@@ -1,5 +1,11 @@
 plugins { id 'com.android.application' }
 
+def wkStoreFile = System.getenv("WIRELESSKEY_ANDROID_KEYSTORE")
+def wkStorePassword = System.getenv("WIRELESSKEY_ANDROID_STORE_PASSWORD")
+def wkKeyAlias = System.getenv("WIRELESSKEY_ANDROID_KEY_ALIAS")
+def wkKeyPassword = System.getenv("WIRELESSKEY_ANDROID_KEY_PASSWORD")
+def wkHasReleaseSigning = wkStoreFile && wkStorePassword && wkKeyAlias && wkKeyPassword
+
 android {
     namespace 'com.wirelesskey.remote'
     compileSdk 36
@@ -8,14 +14,25 @@ android {
         applicationId "com.wirelesskey.remote"
         minSdk 23
         targetSdk 36
-        versionCode 15
-        versionName "4.4"
+        versionCode 16
+        versionName "4.5"
+    }
+
+    signingConfigs {
+        wirelessRelease {
+            if (wkHasReleaseSigning) {
+                storeFile file(wkStoreFile)
+                storePassword wkStorePassword
+                keyAlias wkKeyAlias
+                keyPassword wkKeyPassword
+            }
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig signingConfigs.debug
+            signingConfig wkHasReleaseSigning ? signingConfigs.wirelessRelease : signingConfigs.debug
         }
     }
 }
