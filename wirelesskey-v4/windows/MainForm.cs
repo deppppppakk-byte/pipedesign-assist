@@ -52,7 +52,7 @@ internal sealed class MainForm : Form
         _tray = new NotifyIcon
         {
             Icon = SystemIcons.Application,
-            Text = "WirelessKey 4.2",
+            Text = "WirelessKey 4.3",
             Visible = true,
             ContextMenuStrip = menu
         };
@@ -70,7 +70,7 @@ internal sealed class MainForm : Form
     {
         var title = new Label
         {
-            Text = "WirelessKey 4.2",
+            Text = "WirelessKey 4.3",
             Font = new Font("Segoe UI", 24F, FontStyle.Bold),
             ForeColor = Color.White,
             AutoSize = true,
@@ -139,7 +139,7 @@ internal sealed class MainForm : Form
         {
             var result = MessageBox.Show(
                 "Revoke every trusted phone? They will need to pair again.",
-                "WirelessKey 4.2",
+                "WirelessKey 4.3",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question);
             if (result == DialogResult.Yes) _host.RevokeAll();
@@ -258,8 +258,8 @@ internal sealed class MainForm : Form
         _fingerprintValue.Text = "Certificate SHA-256: " + fp;
 
         _tray.Text = devices.Length == 0
-            ? "WirelessKey 4.2 · waiting for phone"
-            : $"WirelessKey 4.2 · {devices.Length} connected";
+            ? "WirelessKey 4.3 · waiting for phone"
+            : $"WirelessKey 4.3 · {devices.Length} connected";
     }
 
     private void ShowPairingQr()
@@ -277,7 +277,7 @@ internal sealed class MainForm : Form
 
             using var dialog = new Form
             {
-                Text = "WirelessKey 4.2 · QR Pair",
+                Text = "WirelessKey 4.3 · QR Pair",
                 Width = 430,
                 Height = 520,
                 StartPosition = FormStartPosition.CenterParent,
