@@ -22,7 +22,7 @@ jobs:
       - name: Verify source archive
         shell: bash
         run: |
-          echo "a01283a547cd854dfc4971545eb8abc2fffefacf05619cd12a5948d83e7c384f  keydeck-ci/KeyDeck-v1.1.0-CI-Source.zip" | sha256sum -c -
+          echo "a8599edfc3207c06c817d9a2e6195a729015dc96e94c6f041e84d60792883274  keydeck-ci/KeyDeck-v1.1.0-CI-Source.zip" | sha256sum -c -
           rm -rf /tmp/keydeck
           mkdir -p /tmp/keydeck
           unzip -q keydeck-ci/KeyDeck-v1.1.0-CI-Source.zip -d /tmp/keydeck
@@ -76,10 +76,10 @@ jobs:
           GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -v .
           go mod tidy
           go mod verify
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-H windowsgui -s -w" -o /tmp/KeyDeckReceiver-v1.0.0.exe .
-          test -s /tmp/KeyDeckReceiver-v1.0.0.exe
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-H windowsgui -s -w" -o /tmp/KeyDeckReceiver-v1.1.0.exe .
+          test -s /tmp/KeyDeckReceiver-v1.1.0.exe
           mkdir -p /tmp/KeyDeck-Windows
-          cp /tmp/KeyDeckReceiver-v1.0.0.exe /tmp/KeyDeck-Windows/
+          cp /tmp/KeyDeckReceiver-v1.1.0.exe /tmp/KeyDeck-Windows/
           cp Allow-KeyDeck-Firewall.ps1 README.txt /tmp/KeyDeck-Windows/
           cd /tmp
           zip -qr KeyDeck-v1.1.0-Windows-Receiver.zip KeyDeck-Windows
