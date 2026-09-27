@@ -1,0 +1,1 @@
+Retry v4.2 Android CI after transient Maven failure.
