@@ -41,7 +41,16 @@ jobs:
           grep -q 'QRScannerActivity.class' app/src/main/java/com/wirelesskey/remote/MainActivity.java
           ! grep -R "android.webkit.WebView" app/src/main/java || exit 1
       - name: Lint and build release
-        run: gradle :app:lintRelease :app:assembleRelease --stacktrace
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            if gradle :app:lintRelease :app:assembleRelease --stacktrace; then
+              exit 0
+            fi
+            echo "Gradle attempt $attempt failed; retrying dependency/build step..."
+            sleep $((attempt * 15))
+          done
+          exit 1
       - name: Verify APK
         shell: bash
         run: |
