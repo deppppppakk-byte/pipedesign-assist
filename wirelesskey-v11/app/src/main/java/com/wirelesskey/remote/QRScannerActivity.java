@@ -4,7 +4,11 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.RectF;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -81,6 +85,14 @@ public final class QRScannerActivity extends ComponentActivity {
         return Math.round(v * getResources().getDisplayMetrics().density);
     }
 
+    private GradientDrawable surface(int color, float radiusDp, int strokeColor) {
+        GradientDrawable d=new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(dp(radiusDp));
+        if(strokeColor!=0)d.setStroke(dp(1),strokeColor);
+        return d;
+    }
+
     private View buildUi() {
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
@@ -92,39 +104,95 @@ public final class QRScannerActivity extends ComponentActivity {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
 
-        LinearLayout overlay = new LinearLayout(this);
-        overlay.setOrientation(LinearLayout.VERTICAL);
-        overlay.setPadding(dp(18), dp(14), dp(18), dp(14));
-        overlay.setGravity(Gravity.CENTER_HORIZONTAL);
-        overlay.setBackgroundColor(0x22000000);
+        View shade=new View(this);
+        shade.setBackgroundColor(0x33000000);
+        root.addView(shade,new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
 
+        ScanFrameView frame=new ScanFrameView(this);
+        FrameLayout.LayoutParams frameLp=new FrameLayout.LayoutParams(
+                dp(300),dp(210),Gravity.CENTER);
+        root.addView(frame,frameLp);
+
+        LinearLayout chrome = new LinearLayout(this);
+        chrome.setOrientation(LinearLayout.VERTICAL);
+        chrome.setPadding(dp(16), dp(12), dp(16), dp(14));
+        chrome.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        LinearLayout header=new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(12),0,dp(8),0);
+        header.setBackground(surface(0xdd141920,14,0x5537414f));
+
+        LinearLayout copy=new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
         TextView title = new TextView(this);
-        title.setText("Scan WirelessKey QR");
+        title.setText("WirelessKey");
         title.setTextColor(Color.WHITE);
-        title.setTextSize(18);
-        title.setGravity(Gravity.CENTER);
+        title.setTextSize(14);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
-        overlay.addView(title, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(34)));
+
+        TextView subtitle=new TextView(this);
+        subtitle.setText("QR PAIRING");
+        subtitle.setTextColor(0xff7fb7ff);
+        subtitle.setTextSize(7);
+        subtitle.setLetterSpacing(0.10f);
+        subtitle.setTypeface(null,android.graphics.Typeface.BOLD);
+
+        copy.addView(title,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,0,1.2f));
+        copy.addView(subtitle,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,0,0.8f));
+        header.addView(copy,new LinearLayout.LayoutParams(0,dp(42),1f));
+
+        Button cancelTop=makeButton("Close");
+        cancelTop.setOnClickListener(v->{
+            setResult(Activity.RESULT_CANCELED);
+            finish();
+        });
+        header.addView(cancelTop,new LinearLayout.LayoutParams(dp(62),dp(32)));
+
+        chrome.addView(header,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(46)));
 
         status = new TextView(this);
-        status.setText("Point the camera at the QR shown on your PC");
-        status.setTextColor(0xffdbeafe);
-        status.setTextSize(10);
+        status.setText("Align the PC pairing QR inside the frame");
+        status.setTextColor(0xffd9e7f7);
+        status.setTextSize(9);
         status.setGravity(Gravity.CENTER);
+        status.setBackground(surface(0xaa11161d,12,0x44343f4b));
         LinearLayout.LayoutParams statusLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(30));
-        overlay.addView(status, statusLp);
+                LinearLayout.LayoutParams.WRAP_CONTENT, dp(30));
+        statusLp.topMargin=dp(8);
+        statusLp.leftMargin=dp(24);
+        statusLp.rightMargin=dp(24);
+        chrome.addView(status, statusLp);
 
         View spacer = new View(this);
-        overlay.addView(spacer, new LinearLayout.LayoutParams(
+        chrome.addView(spacer, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        LinearLayout actionDock=new LinearLayout(this);
+        actionDock.setOrientation(LinearLayout.VERTICAL);
+        actionDock.setPadding(dp(10),dp(8),dp(10),dp(8));
+        actionDock.setBackground(surface(0xe6151a21,16,0x5537414f));
+
+        TextView help=new TextView(this);
+        help.setText("Camera not ideal? Pair from a saved QR screenshot.");
+        help.setTextColor(0xff9baabc);
+        help.setTextSize(8);
+        help.setGravity(Gravity.CENTER_VERTICAL);
+        actionDock.addView(help,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(24)));
 
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
         actions.setGravity(Gravity.CENTER);
 
         Button choose = makeButton("Choose QR image");
+        choose.setBackground(surface(0xff1f4f83,11,0));
         choose.setOnClickListener(v -> openImagePicker());
 
         Button retry = makeButton("Restart camera");
@@ -136,18 +204,21 @@ public final class QRScannerActivity extends ComponentActivity {
             finish();
         });
 
-        actions.addView(choose, new LinearLayout.LayoutParams(0, dp(42), 1f));
-        LinearLayout.LayoutParams retryLp = new LinearLayout.LayoutParams(0, dp(42), 1f);
-        retryLp.leftMargin = dp(8);
+        actions.addView(choose, new LinearLayout.LayoutParams(0, dp(38), 1.25f));
+        LinearLayout.LayoutParams retryLp = new LinearLayout.LayoutParams(0, dp(38), 1f);
+        retryLp.leftMargin = dp(7);
         actions.addView(retry, retryLp);
-        LinearLayout.LayoutParams cancelLp = new LinearLayout.LayoutParams(0, dp(42), 1f);
-        cancelLp.leftMargin = dp(8);
+        LinearLayout.LayoutParams cancelLp = new LinearLayout.LayoutParams(0, dp(38), 0.8f);
+        cancelLp.leftMargin = dp(7);
         actions.addView(cancel, cancelLp);
 
-        overlay.addView(actions, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(42)));
+        actionDock.addView(actions,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(38)));
 
-        root.addView(overlay, new FrameLayout.LayoutParams(
+        chrome.addView(actionDock,new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,dp(72)));
+
+        root.addView(chrome, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
 
@@ -158,11 +229,14 @@ public final class QRScannerActivity extends ComponentActivity {
         Button b = new Button(this);
         b.setText(label);
         b.setAllCaps(false);
-        b.setTextColor(Color.WHITE);
-        b.setTextSize(9);
-        b.setBackgroundColor(0xff1e3a5f);
+        b.setTextColor(0xffedf3fb);
+        b.setTextSize(8.5f);
+        b.setBackground(surface(0xff222a34,11,0));
         b.setMinHeight(0);
         b.setMinimumHeight(0);
+        b.setMinWidth(0);
+        b.setMinimumWidth(0);
+        b.setPadding(dp(8),0,dp(8),0);
         return b;
     }
 
@@ -348,6 +422,46 @@ public final class QRScannerActivity extends ComponentActivity {
             startCamera();
         } else {
             setStatus("Camera denied · use Choose QR image", 0xffff6b6b);
+        }
+    }
+
+    private static final class ScanFrameView extends View {
+        private final Paint corner=new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint wash=new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final float density;
+
+        ScanFrameView(android.content.Context context){
+            super(context);
+            density=getResources().getDisplayMetrics().density;
+            setWillNotDraw(false);
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas){
+            super.onDraw(canvas);
+
+            float pad=6f*density;
+            RectF rect=new RectF(pad,pad,getWidth()-pad,getHeight()-pad);
+
+            wash.setColor(0x221d79ff);
+            canvas.drawRoundRect(rect,18f*density,18f*density,wash);
+
+            corner.setColor(0xff7fb7ff);
+            corner.setStyle(Paint.Style.STROKE);
+            corner.setStrokeWidth(3f*density);
+            corner.setStrokeCap(Paint.Cap.ROUND);
+
+            float len=34f*density;
+            float l=rect.left, t=rect.top, r=rect.right, b=rect.bottom;
+
+            canvas.drawLine(l,t,l+len,t,corner);
+            canvas.drawLine(l,t,l,t+len,corner);
+            canvas.drawLine(r,t,r-len,t,corner);
+            canvas.drawLine(r,t,r,t+len,corner);
+            canvas.drawLine(l,b,l+len,b,corner);
+            canvas.drawLine(l,b,l,b-len,corner);
+            canvas.drawLine(r,b,r-len,b,corner);
+            canvas.drawLine(r,b,r,b-len,corner);
         }
     }
 
