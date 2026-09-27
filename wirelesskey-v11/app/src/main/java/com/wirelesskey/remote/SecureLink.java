@@ -80,6 +80,7 @@ public final class SecureLink {
     private String currentCode = "";
     private int reconnectAttempt;
     private long lastPingAt;
+    private volatile long lastLatencyMs = -1L;
 
     private final Runnable reconnectTask = () -> {
         if (shouldReconnect && !authenticated && !currentHost.isEmpty()) connectSocket(false);
@@ -476,6 +477,7 @@ public final class SecureLink {
                     } else if ("pong".equals(type)) {
                         long sent = obj.optLong("ts", lastPingAt);
                         long ms = Math.max(0, System.currentTimeMillis() - sent);
+                        lastLatencyMs = ms;
                         Listener l = listener;
                         if (l != null) main.post(() -> l.onLatency(ms));
                     } else if ("clipboard".equals(type)) {
@@ -565,6 +567,41 @@ public final class SecureLink {
 
     public void cancelPointerMotion() {
         clearPointerBacklog();
+    }
+
+    public boolean isConnected() {
+        return authenticated && socket != null;
+    }
+
+    public String getCurrentHost() {
+        return currentHost;
+    }
+
+    public long getSocketQueueBytes() {
+        WebSocket ws = socket;
+        return ws == null ? 0L : ws.queueSize();
+    }
+
+    public int getReconnectAttempt() {
+        return reconnectAttempt;
+    }
+
+    public long getLastLatencyMs() {
+        return lastLatencyMs;
+    }
+
+    public boolean runConnectionTest() {
+        WebSocket ws = socket;
+        if (!authenticated || ws == null) return false;
+        try {
+            lastPingAt = System.currentTimeMillis();
+            JSONObject ping = new JSONObject();
+            ping.put("type", "ping");
+            ping.put("ts", lastPingAt);
+            return ws.send(ping.toString());
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     public long getCoalescedPointerEvents() {
