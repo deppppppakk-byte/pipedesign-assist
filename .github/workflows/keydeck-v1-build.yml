@@ -65,7 +65,8 @@ jobs:
         working-directory: /tmp/keydeck/KeyDeck/receiver
         shell: bash
         run: |
-          go mod download
+          go mod tidy
+          go mod verify
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-H windowsgui -s -w" -o /tmp/KeyDeckReceiver-v1.0.0.exe .
           test -s /tmp/KeyDeckReceiver-v1.0.0.exe
           mkdir -p /tmp/KeyDeck-Windows
