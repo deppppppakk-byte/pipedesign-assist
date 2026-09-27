@@ -12,3 +12,5 @@ attempt=6 v1.1 final-packaging
 source_sha256=a8599edfc3207c06c817d9a2e6195a729015dc96e94c6f041e84d60792883274
 attempt=7 v1.2 full-104-keyboard
 source_sha256=b88d95ec65d3ee5ca6829afb362d153967a1caf219319bbb18a8612cfa21d5a3
+attempt=8 v1.2 compile-fix
+source_sha256=3cd310bc47158953c9cba6891a9ac192c3c4488fc85293a3a987fa6bd3fe7cf8
