@@ -946,6 +946,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         if("connected".equals(kind)){
             statusText.setTextColor(Color.rgb(52,211,153));
             connectButton.setText("Reconnect");
+            handler.postDelayed(this::reloadKnownPeersIntoSpinner,120);
         }else if("error".equals(kind)){
             statusText.setTextColor(Color.rgb(251,113,133));
         }else if("connecting".equals(kind)||"authenticating".equals(kind)||"reconnecting".equals(kind)||"discovering".equals(kind)){
@@ -988,6 +989,16 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     @Override
     public void onLatency(long ms) {
         latencyText.setText(ms+" ms");
+    }
+
+    @Override
+    public void onClipboard(String text) {
+        if (text == null) text = "";
+        final String value = text;
+        ClipboardManager cm=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+        if(cm!=null) cm.setPrimaryClip(ClipData.newPlainText("WirelessKey PC",value));
+        if(clipboardPreview!=null) clipboardPreview.setText(value);
+        onStatus("connected","PC clipboard copied to phone");
     }
 
     @Override
