@@ -33,13 +33,23 @@ internal static class NativeSelfTest
             type = "auth",
             code = host.PairCode,
             device = "WirelessKey Native Self Test",
-            appVersion = "4.3"
+            appVersion = "4.4"
         });
         await ws.SendAsync(auth, WebSocketMessageType.Text, true, CancellationToken.None);
 
         using var authDoc = JsonDocument.Parse(await ReceiveTextAsync(ws));
         if (!authDoc.RootElement.GetProperty("ok").GetBoolean())
             throw new InvalidOperationException("Native receiver authentication self-test failed.");
+
+        var token = authDoc.RootElement.GetProperty("token").GetString() ?? "";
+        if (string.IsNullOrWhiteSpace(token))
+            throw new InvalidOperationException("Trusted-device token was not issued.");
+        if (!host.TrustedDevices.Any(x => x.Token == token))
+            throw new InvalidOperationException("Newly paired phone was not added to trusted devices.");
+        if (!host.RenameTrusted(token, "WirelessKey QA Phone"))
+            throw new InvalidOperationException("Trusted-device rename failed.");
+        if (!host.TrustedDevices.Any(x => x.Token == token && x.Device == "WirelessKey QA Phone"))
+            throw new InvalidOperationException("Trusted-device alias was not persisted.");
 
         var stamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var ping = JsonSerializer.SerializeToUtf8Bytes(new { type = "ping", ts = stamp });
@@ -88,7 +98,12 @@ internal static class NativeSelfTest
         if (!binaryPathHealthy)
             throw new InvalidOperationException("Binary pointer fast-path disrupted the connection.");
 
-        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "self-test complete", CancellationToken.None);
+        if (!host.RevokeTrusted(token))
+            throw new InvalidOperationException("Trusted-device revoke failed.");
+        if (host.TrustedDevices.Any(x => x.Token == token))
+            throw new InvalidOperationException("Revoked trusted device is still present.");
+
+        await Task.Delay(150);
         await host.StopAsync();
     }
 
