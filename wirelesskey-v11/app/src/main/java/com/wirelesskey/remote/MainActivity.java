@@ -386,47 +386,62 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     }
 
     private View buildWorkspaceRail() {
-        HorizontalScrollView scroll=new HorizontalScrollView(this);
-        scroll.setHorizontalScrollBarEnabled(false);
-        scroll.setFillViewport(true);
-        scroll.setBackground(bg(Color.rgb(14,17,22),10,0));
+        LinearLayout shell=new LinearLayout(this);
+        shell.setOrientation(LinearLayout.HORIZONTAL);
+        shell.setGravity(Gravity.CENTER_VERTICAL);
+        shell.setPadding(dp(4),0,dp(4),0);
 
-        LinearLayout rail=new LinearLayout(this);
-        rail.setOrientation(LinearLayout.HORIZONTAL);
-        rail.setGravity(Gravity.CENTER);
-        rail.setPadding(dp(4),dp(3),dp(4),dp(3));
+        LinearLayout dock=new LinearLayout(this);
+        dock.setOrientation(LinearLayout.HORIZONTAL);
+        dock.setGravity(Gravity.CENTER);
+        dock.setPadding(dp(4),dp(3),dp(4),dp(3));
+        dock.setBackground(gradient(
+                Color.rgb(20,24,30),
+                Color.rgb(14,17,22),
+                13,
+                Color.rgb(33,39,47)));
+        dock.setElevation(dp(1));
 
         String[][] items={{"Deck","deck"},{"Pad","pad"},{"Work","work"},{"CAD","cad"},{"Media","media"}};
         for(String[] item:items){
-            Button b=button(item[0],8.2f);
+            Button b=button(item[0],8.1f);
+            b.setElevation(0);
+            b.setTextColor(Color.rgb(144,154,168));
             workspaceButtons.put(item[1],b);
             b.setOnClickListener(v->{haptic();showWorkspace(item[1]);});
             LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(27),1f);
-            lp.leftMargin=dp(2); lp.rightMargin=dp(2);
-            rail.addView(b,lp);
+            lp.leftMargin=dp(1);lp.rightMargin=dp(1);
+            dock.addView(b,lp);
         }
 
-        Button more=button("Control",8.2f);
-        more.setBackground(stateBg(Color.rgb(28,35,45),Color.rgb(42,51,64),8,0));
-        more.setOnClickListener(v->{haptic();showControlCenter(v);});
-        LinearLayout.LayoutParams moreLp=new LinearLayout.LayoutParams(0,dp(27),1f);
-        moreLp.leftMargin=dp(4);
-        rail.addView(more,moreLp);
+        shell.addView(dock,new LinearLayout.LayoutParams(0,dp(33),1f));
 
-        scroll.addView(rail,new HorizontalScrollView.LayoutParams(
-                HorizontalScrollView.LayoutParams.MATCH_PARENT,
-                HorizontalScrollView.LayoutParams.MATCH_PARENT));
-        return scroll;
+        Button more=button("•••",10);
+        more.setElevation(0);
+        more.setBackground(stateBg(
+                Color.rgb(25,30,38),
+                Color.rgb(42,49,60),
+                13,0));
+        more.setOnClickListener(v->{haptic();showControlCenter(v);});
+        LinearLayout.LayoutParams moreLp=new LinearLayout.LayoutParams(dp(44),dp(33));
+        moreLp.leftMargin=dp(6);
+        shell.addView(more,moreLp);
+
+        return shell;
     }
 
     private void updateWorkspaceButtons(){
         for(Map.Entry<String,Button> e:workspaceButtons.entrySet()){
             boolean active=e.getKey().equals(currentWorkspace);
             e.getValue().setBackground(stateBg(
-                    active?Color.rgb(37,78,132):Color.rgb(24,29,36),
-                    active?Color.rgb(45,92,154):Color.rgb(38,45,55),
-                    8,0));
-            e.getValue().setTextColor(active?Color.rgb(224,238,255):Color.rgb(158,168,181));
+                    active?ACCENT_SOFT:Color.TRANSPARENT,
+                    active?Color.rgb(39,74,119):Color.rgb(28,33,40),
+                    10,0));
+            e.getValue().setTextColor(
+                    active?Color.rgb(229,239,255):Color.rgb(137,148,163));
+            e.getValue().setTypeface(
+                    Typeface.DEFAULT,
+                    active?Typeface.BOLD:Typeface.NORMAL);
         }
     }
 
