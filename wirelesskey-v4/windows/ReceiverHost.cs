@@ -370,6 +370,7 @@ internal sealed class ReceiverHost : IAsyncDisposable
                 return;
             }
 
+            deviceName = TrustedDisplayName(auth.Token, deviceName);
             _connected[id] = new ConnectedDevice(id, deviceName, clientIp, DateTimeOffset.Now, auth.Token);
             _sessions[id] = ws;
             StateChanged?.Invoke();
@@ -457,6 +458,17 @@ internal sealed class ReceiverHost : IAsyncDisposable
         }
     }
 
+    private string TrustedDisplayName(string token, string fallback)
+    {
+        lock (_stateGate)
+        {
+            return _trusted.TryGetValue(token, out var trusted)
+                && !string.IsNullOrWhiteSpace(trusted.Device)
+                ? trusted.Device
+                : fallback;
+        }
+    }
+
     private sealed record AuthResult(bool Ok, string Token, string Error);
 
     private AuthResult ValidateAuth(string ip, string token, string code, string device)
@@ -465,7 +477,7 @@ internal sealed class ReceiverHost : IAsyncDisposable
         {
             if (!string.IsNullOrWhiteSpace(token) && _trusted.TryGetValue(token, out var known))
             {
-                _trusted[token] = known with { Device = device, LastSeen = DateTimeOffset.UtcNow.ToUnixTimeSeconds() };
+                _trusted[token] = known with { LastSeen = DateTimeOffset.UtcNow.ToUnixTimeSeconds() };
                 SaveTrusted();
                 return new(true, token, "");
             }
