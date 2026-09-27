@@ -10,3 +10,5 @@ source_sha256=a01283a547cd854dfc4971545eb8abc2fffefacf05619cd12a5948d83e7c384f
 attempt=5 v1.1 corrected-source-path
 attempt=6 v1.1 final-packaging
 source_sha256=a8599edfc3207c06c817d9a2e6195a729015dc96e94c6f041e84d60792883274
+attempt=7 v1.2 full-104-keyboard
+source_sha256=b88d95ec65d3ee5ca6829afb362d153967a1caf219319bbb18a8612cfa21d5a3
