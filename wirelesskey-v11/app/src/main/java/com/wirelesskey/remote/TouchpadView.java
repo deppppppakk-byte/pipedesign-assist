@@ -2,8 +2,10 @@ package com.wirelesskey.remote;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.graphics.Shader;
 import android.os.SystemClock;
 import android.view.MotionEvent;
 import android.view.View;
@@ -26,6 +28,7 @@ public final class TouchpadView extends View {
     private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint accent = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint subtle = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint highlight = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Map<Integer, float[]> pointers = new HashMap<>();
     private Sender sender;
 
@@ -58,15 +61,17 @@ public final class TouchpadView extends View {
         setFocusable(true);
         setClickable(true);
 
-        bg.setColor(0xff101b2d);
-        border.setColor(0xff334a69);
+        bg.setColor(0xff11161d);
+        border.setColor(0xff303843);
         border.setStyle(Paint.Style.STROKE);
-        border.setStrokeWidth(1.2f * density);
-        text.setColor(0xff9fb5d0);
+        border.setStrokeWidth(0.9f * density);
+        text.setColor(0xff8998aa);
         text.setTextAlign(Paint.Align.CENTER);
-        text.setTextSize(12f * density);
-        accent.setColor(0xff3b82f6);
-        subtle.setColor(0xff1d2b40);
+        text.setTextSize(9f * density);
+        accent.setColor(0xff4c84ff);
+        subtle.setColor(0xff182029);
+        highlight.setColor(0x22ffffff);
+        highlight.setStrokeWidth(0.7f * density);
     }
 
     public void setSensitivity(float value) {
@@ -110,42 +115,66 @@ public final class TouchpadView extends View {
     }
 
     @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w,h,oldw,oldh);
+        bg.setShader(new LinearGradient(
+                0,0,0,Math.max(1,h),
+                0xff151b22,
+                0xff0f1318,
+                Shader.TileMode.CLAMP));
+    }
+
+    @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        float r = 14f * density;
+        float r = 16f * density;
         RectF rect = new RectF(1, 1, getWidth() - 1, getHeight() - 1);
         canvas.drawRoundRect(rect, r, r, bg);
         canvas.drawRoundRect(rect, r, r, border);
 
-        float headerY = 26f * density;
-        canvas.drawRoundRect(new RectF(12f*density,12f*density,getWidth()-12f*density,42f*density),
-                10f*density,10f*density,subtle);
+        float inset=12f*density;
+
+        // A single soft top highlight makes the surface read like a physical trackpad
+        // without filling it with instructional text.
+        canvas.drawLine(inset, inset, getWidth()-inset, inset, highlight);
 
         text.setTextAlign(Paint.Align.LEFT);
-        text.setTextSize(10f * density);
-        text.setColor(0xffdbeafe);
-        canvas.drawText("PRECISION TOUCHPAD", 22f*density, headerY+4f*density, text);
+        text.setTextSize(7.5f*density);
+        text.setColor(0xff66778b);
+        canvas.drawText("TOUCHPAD",16f*density,24f*density,text);
 
-        text.setTextAlign(Paint.Align.RIGHT);
-        text.setColor(0xff7dd3fc);
-        String mode = dragging ? "DRAG" : (pointers.size()>1 ? pointers.size()+" FINGERS" : "READY");
-        canvas.drawText(mode, getWidth()-22f*density, headerY+4f*density, text);
+        if(precisionMode){
+            float badgeW=62f*density;
+            RectF badge=new RectF(
+                    getWidth()-badgeW-14f*density,
+                    12f*density,
+                    getWidth()-14f*density,
+                    34f*density);
+            Paint badgePaint=new Paint(Paint.ANTI_ALIAS_FLAG);
+            badgePaint.setColor(0xff1e3b60);
+            canvas.drawRoundRect(badge,11f*density,11f*density,badgePaint);
 
-        text.setTextAlign(Paint.Align.CENTER);
-        text.setColor(0xff536b86);
-        text.setTextSize(8.5f * density);
-        if (pointers.isEmpty()) {
-            canvas.drawText(precisionMode ? "PRECISION" : "READY",
-                    getWidth()/2f, getHeight()-18f*density, text);
+            text.setTextAlign(Paint.Align.CENTER);
+            text.setTextSize(7f*density);
+            text.setColor(0xffcfe3ff);
+            canvas.drawText("PRECISION",badge.centerX(),badge.centerY()+2.4f*density,text);
         }
 
         if(!pointers.isEmpty()){
             float[] cc=centroid();
+
             accent.setStyle(Paint.Style.FILL);
-            accent.setAlpha(42);
-            canvas.drawCircle(cc[0],cc[1],18f*density,accent);
-            accent.setAlpha(180);
-            canvas.drawCircle(cc[0],cc[1],4f*density,accent);
+            accent.setAlpha(26);
+            canvas.drawCircle(cc[0],cc[1],19f*density,accent);
+
+            accent.setStyle(Paint.Style.STROKE);
+            accent.setStrokeWidth(1.1f*density);
+            accent.setAlpha(115);
+            canvas.drawCircle(cc[0],cc[1],8f*density,accent);
+
+            accent.setStyle(Paint.Style.FILL);
+            accent.setAlpha(190);
+            canvas.drawCircle(cc[0],cc[1],2.5f*density,accent);
             accent.setAlpha(255);
         }
     }
