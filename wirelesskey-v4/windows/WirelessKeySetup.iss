@@ -22,6 +22,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayName=WirelessKey
 UninstallDisplayIcon={app}\{#MyAppExeName}
+SetupIconFile=WirelessKey.ico
 SetupLogging=yes
 CloseApplications=yes
 RestartApplications=no
