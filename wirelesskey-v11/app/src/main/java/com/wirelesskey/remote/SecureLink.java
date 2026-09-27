@@ -162,6 +162,19 @@ public final class SecureLink {
         }
     }
 
+    public boolean hasTrustedTokenForHost(String rawHost) {
+        String host = normalizeHost(rawHost);
+        if (host.isEmpty()) return false;
+
+        String fingerprint = discoveredFingerprints.get(host);
+        if (fingerprint == null || fingerprint.isEmpty()) {
+            fingerprint = prefs.getString(certKey(host), "");
+        }
+        if (fingerprint.isEmpty()) return false;
+
+        return !prefs.getString(tokenKey(fingerprint), "").isEmpty();
+    }
+
     public JSONObject importPairingQr(String payload) throws Exception {
         JSONObject obj = new JSONObject(payload);
         if (!"wirelesskey_pair".equals(obj.optString("type", ""))) {
