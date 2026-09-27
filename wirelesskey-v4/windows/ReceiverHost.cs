@@ -308,6 +308,18 @@ internal sealed class ReceiverHost : IAsyncDisposable
                     await SendJsonAsync(ws, new { type = "pong", ts }, sendLock, context.RequestAborted);
                 }
             }
+
+            if (ws.State == WebSocketState.CloseReceived)
+            {
+                try
+                {
+                    await ws.CloseOutputAsync(
+                        WebSocketCloseStatus.NormalClosure,
+                        "WirelessKey connection closed",
+                        CancellationToken.None);
+                }
+                catch { }
+            }
         }
         catch (OperationCanceledException)
         {
