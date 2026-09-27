@@ -362,9 +362,9 @@ public final class SecureLink {
                         Listener l = listener;
                         if (l != null) main.post(() -> l.onLatency(ms));
                     } else if ("clipboard".equals(type)) {
-                        String text = obj.optString("text", "");
+                        String clipboardText = obj.optString("text", "");
                         Listener l = listener;
-                        if (l != null) main.post(() -> l.onClipboard(text));
+                        if (l != null) main.post(() -> l.onClipboard(clipboardText));
                     }
                 } catch (Exception ignored) {
                 }
