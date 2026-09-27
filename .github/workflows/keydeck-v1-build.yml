@@ -22,7 +22,7 @@ jobs:
       - name: Verify source archive
         shell: bash
         run: |
-          echo "93155861dba1c5b49289bd3231c8cde18c84e61df74596915c98af640388a7bb  keydeck-ci/KeyDeck-v1.0.0-CI-Source.zip" | sha256sum -c -
+          echo "d9036e7c6eae3a0eb3f184bf38570c4965be48aae8c61bc83b871af62d956a20  keydeck-ci/KeyDeck-v1.0.0-CI-Source.zip" | sha256sum -c -
           rm -rf /tmp/keydeck
           mkdir -p /tmp/keydeck
           unzip -q keydeck-ci/KeyDeck-v1.0.0-CI-Source.zip -d /tmp/keydeck
@@ -55,6 +55,10 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk /tmp/KeyDeck-v1.0.0-Android.apk
           sha256sum /tmp/KeyDeck-v1.0.0-Android.apk > /tmp/KeyDeck-v1.0.0-Android.apk.sha256
           test -s /tmp/KeyDeck-v1.0.0-Android.apk
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          BADGING="$("$AAPT" dump badging /tmp/KeyDeck-v1.0.0-Android.apk)"
+          echo "$BADGING" | grep -F "package: name='in.tamishra.keydeck' versionCode='10000' versionName='1.0.0'"
+          echo "$BADGING" | grep -F "application-label:'KeyDeck'"
 
       - name: Set up Go 1.23
         uses: actions/setup-go@v5
