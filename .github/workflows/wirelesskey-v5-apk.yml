@@ -1,4 +1,4 @@
-name: WirelessKey v5 APK
+name: WirelessKey v5.1 QC APK
 
 on:
   push:
@@ -17,6 +17,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Source parity QC
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'versionName "5.1.0"' wirelesskey-v5/android/app/build.gradle
+          grep -q 'sensorLandscape' wirelesskey-v5/android/app/src/main/AndroidManifest.xml
+          grep -q 'Multiwork' wirelesskey-v5/android/app/src/main/java/in/tamishra/wirelesskey/MainActivity.java
+          grep -q '"Deck"' wirelesskey-v5/android/app/src/main/java/in/tamishra/wirelesskey/MainActivity.java
+          grep -q '"CAD"' wirelesskey-v5/android/app/src/main/java/in/tamishra/wirelesskey/MainActivity.java
+          grep -q 'mouseButton' wirelesskey-v5/android/app/src/main/java/in/tamishra/wirelesskey/TouchpadView.java
+          grep -q 'mouseButton' wirelesskey-v5/android/app/src/main/java/in/tamishra/wirelesskey/ConnectionManager.java
+          grep -q 'lastPong' wirelesskey-v5/android/app/src/main/java/in/tamishra/wirelesskey/ConnectionManager.java
 
       - name: Java 17
         uses: actions/setup-java@v5
@@ -44,12 +57,24 @@ jobs:
           ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
         run: gradle --no-daemon clean assembleDebug
 
-      - name: Rename APK
-        run: cp wirelesskey-v5/android/app/build/outputs/apk/debug/app-debug.apk WirelessKey-v5.0.1-Android.apk
+      - name: APK QC
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=wirelesskey-v5/android/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          /usr/local/lib/android/sdk/build-tools/35.0.0/aapt dump badging "$APK" | tee apk-badging.txt
+          grep -q "package: name='in.tamishra.wirelesskey.debug'" apk-badging.txt
+          grep -q "versionName='5.1.0-debug'" apk-badging.txt
+          cp "$APK" WirelessKey-v5.1.0-QC.apk
+          sha256sum WirelessKey-v5.1.0-QC.apk > WirelessKey-v5.1.0-QC.apk.sha256
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: WirelessKey-v5.0.1-Android
-          path: WirelessKey-v5.0.1-Android.apk
+          name: WirelessKey-v5.1.0-QC
+          path: |
+            WirelessKey-v5.1.0-QC.apk
+            WirelessKey-v5.1.0-QC.apk.sha256
+            apk-badging.txt
           if-no-files-found: error
