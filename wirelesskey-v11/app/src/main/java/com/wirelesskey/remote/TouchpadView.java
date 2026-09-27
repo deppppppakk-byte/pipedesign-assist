@@ -16,6 +16,8 @@ import java.util.Map;
 public final class TouchpadView extends View {
     public interface Sender {
         void send(JSONObject event);
+        void move(float dx, float dy, long eventNanos);
+        void scroll(boolean horizontal, float delta, long eventNanos);
         void haptic();
     }
 
@@ -35,6 +37,11 @@ public final class TouchpadView extends View {
     private long lastTap;
     private float pendingDx, pendingDy;
     private boolean framePosted;
+    private float sensitivity = 1.18f;
+    private float acceleration = 0.035f;
+    private float scrollSpeed = 1.0f;
+    private boolean precisionMode = false;
+    private boolean naturalScroll = false;
 
     private int maxGestureCount;
     private float gestureStartX, gestureStartY;
@@ -60,6 +67,42 @@ public final class TouchpadView extends View {
         text.setTextSize(12f * density);
         accent.setColor(0xff3b82f6);
         subtle.setColor(0xff1d2b40);
+    }
+
+    public void setSensitivity(float value) {
+        sensitivity = Math.max(0.45f, Math.min(2.4f, value));
+    }
+
+    public float getSensitivity() {
+        return sensitivity;
+    }
+
+    public void setPrecisionMode(boolean enabled) {
+        precisionMode = enabled;
+        invalidate();
+    }
+
+    public boolean isPrecisionMode() {
+        return precisionMode;
+    }
+
+    public void setNaturalScroll(boolean enabled) {
+        naturalScroll = enabled;
+    }
+
+    public boolean isNaturalScroll() {
+        return naturalScroll;
+    }
+
+    public void setScrollSpeed(float value) {
+        scrollSpeed = Math.max(0.35f, Math.min(2.5f, value));
+    }
+
+    private float pointerGain(float dx, float dy) {
+        float speed = (float)Math.hypot(dx, dy);
+        float base = sensitivity * (precisionMode ? 0.58f : 1f);
+        float accel = precisionMode ? acceleration * 0.18f : acceleration;
+        return base * (1f + Math.min(speed, 24f) * accel);
     }
 
     public void setSender(Sender sender) {
@@ -89,16 +132,12 @@ public final class TouchpadView extends View {
         canvas.drawText(mode, getWidth()-22f*density, headerY+4f*density, text);
 
         text.setTextAlign(Paint.Align.CENTER);
-        text.setColor(0xff7591af);
-        text.setTextSize(11f * density);
-        canvas.drawText("Move pointer anywhere", getWidth()/2f, getHeight()/2f - 5f*density, text);
-
+        text.setColor(0xff536b86);
         text.setTextSize(8.5f * density);
-        text.setColor(0xff647f9e);
-        canvas.drawText("Tap click  ·  Hold drag  ·  2-finger scroll/right-click",
-                getWidth()/2f, getHeight()/2f + 16f*density, text);
-        canvas.drawText("3-finger apps  ·  4-finger desktops  ·  Pinch zoom",
-                getWidth()/2f, getHeight()-18f*density, text);
+        if (pointers.isEmpty()) {
+            canvas.drawText(precisionMode ? "PRECISION" : "READY",
+                    getWidth()/2f, getHeight()-18f*density, text);
+        }
 
         if(!pointers.isEmpty()){
             float[] cc=centroid();
@@ -164,26 +203,19 @@ public final class TouchpadView extends View {
         framePosted = true;
         postOnAnimation(() -> {
             framePosted = false;
-            if (Math.abs(pendingDx) + Math.abs(pendingDy) > 0.2f) {
-                try {
-                    JSONObject o = new JSONObject();
-                    o.put("type", "move");
-                    o.put("dx", pendingDx);
-                    o.put("dy", pendingDy);
-                    emit(o);
-                } catch (Exception ignored) {}
-                pendingDx = pendingDy = 0;
+            float dx = pendingDx;
+            float dy = pendingDy;
+            pendingDx = pendingDy = 0f;
+            if (Math.abs(dx) + Math.abs(dy) > 0.08f && sender != null) {
+                sender.move(dx, dy, SystemClock.elapsedRealtimeNanos());
             }
         });
     }
 
-    private void emitWheel(String type, float delta) {
-        try {
-            JSONObject o = new JSONObject();
-            o.put("type", type);
-            o.put("delta", Math.round(delta));
-            emit(o);
-        } catch (Exception ignored) {}
+    private void emitWheel(boolean horizontal, float delta) {
+        if (sender == null || Math.abs(delta) < 0.1f) return;
+        float direction = naturalScroll ? -1f : 1f;
+        sender.scroll(horizontal, delta * scrollSpeed * direction, SystemClock.elapsedRealtimeNanos());
     }
 
     @Override
@@ -268,9 +300,9 @@ public final class TouchpadView extends View {
                         if ("pinch".equals(gestureMode) && Math.abs(distDelta)>2*density) {
                             emitKey(distDelta>0 ? "+" : "-", "CTRL");
                         } else if ("hscroll".equals(gestureMode)) {
-                            emitWheel("hwheel", cx*5f);
+                            emitWheel(true, cx*4.2f);
                         } else if ("vscroll".equals(gestureMode)) {
-                            emitWheel("wheel", -cy*5f);
+                            emitWheel(false, -cy*4.2f);
                         }
                     }
                     continue;
@@ -278,8 +310,9 @@ public final class TouchpadView extends View {
 
                 if (pid == primaryId) {
                     if (Math.abs(nx-startX)+Math.abs(ny-startY) > 5*density) moved=true;
-                    pendingDx += dx*1.55f;
-                    pendingDy += dy*1.55f;
+                    float gain = pointerGain(dx,dy);
+                    pendingDx += dx*gain;
+                    pendingDy += dy*gain;
                     schedulePointerFlush();
                 }
             }
@@ -294,6 +327,7 @@ public final class TouchpadView extends View {
             final float totalY = gestureLastY-gestureStartY;
             final long elapsed = SystemClock.uptimeMillis()-downAt;
             pointers.remove(id);
+            pendingDx = pendingDy = 0f;
             invalidate();
 
             if (suppressUntilClear) {
