@@ -18,6 +18,18 @@ namespace WirelessKey.NativeReceiver;
 internal sealed record TrustedDevice(string Device, long Created, long LastSeen);
 internal sealed record TrustedDeviceInfo(string Token, string Device, long Created, long LastSeen, bool Connected);
 internal sealed record ConnectedDevice(Guid Id, string Device, string Ip, DateTimeOffset Since, string Token);
+internal sealed record ReceiverDiagnostics(
+    DateTimeOffset StartedAt,
+    bool Running,
+    bool TlsEnabled,
+    string Endpoint,
+    int ConnectedDevices,
+    int TrustedDevices,
+    long InputEvents,
+    long PointerPackets,
+    long InvalidPointerPackets,
+    DateTimeOffset? LastInputAt,
+    long WorkingSetBytes);
 
 internal sealed class ReceiverHost : IAsyncDisposable
 {
@@ -41,6 +53,11 @@ internal sealed class ReceiverHost : IAsyncDisposable
     private X509Certificate2? _certificate;
     private string _pairCode = "000000";
     private DateTimeOffset _pairCreated;
+    private DateTimeOffset _startedAt = DateTimeOffset.UtcNow;
+    private long _inputEvents;
+    private long _pointerPackets;
+    private long _invalidPointerPackets;
+    private long _lastInputUnixMs;
 
     public event Action? StateChanged;
     public event Action<string>? Error;
@@ -60,6 +77,32 @@ internal sealed class ReceiverHost : IAsyncDisposable
         code = PairCode
     });
     public IReadOnlyCollection<ConnectedDevice> ConnectedDevices => _connected.Values.ToArray();
+
+    public ReceiverDiagnostics Diagnostics
+    {
+        get
+        {
+            DateTimeOffset? lastInput = null;
+            var stamp = Interlocked.Read(ref _lastInputUnixMs);
+            if (stamp > 0) lastInput = DateTimeOffset.FromUnixTimeMilliseconds(stamp);
+
+            long workingSet = 0;
+            try { workingSet = Environment.WorkingSet; } catch { }
+
+            return new ReceiverDiagnostics(
+                _startedAt,
+                _app != null,
+                _certificate != null,
+                $"{LocalIp}:{Port}",
+                _connected.Count,
+                TrustedDevices.Count,
+                Interlocked.Read(ref _inputEvents),
+                Interlocked.Read(ref _pointerPackets),
+                Interlocked.Read(ref _invalidPointerPackets),
+                lastInput,
+                workingSet);
+        }
+    }
 
     public IReadOnlyCollection<TrustedDeviceInfo> TrustedDevices
     {
@@ -261,6 +304,7 @@ internal sealed class ReceiverHost : IAsyncDisposable
 
         _certificate = EnsureCertificate();
         Port = FindAvailablePort();
+        _startedAt = DateTimeOffset.UtcNow;
         _cts = CancellationTokenSource.CreateLinkedTokenSource(externalToken);
 
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -396,7 +440,15 @@ internal sealed class ReceiverHost : IAsyncDisposable
 
                 if (packet.Value.Type == WebSocketMessageType.Binary)
                 {
-                    ProcessPointerPacket(packet.Value.Data);
+                    if (ProcessPointerPacket(packet.Value.Data))
+                    {
+                        Interlocked.Increment(ref _pointerPackets);
+                        MarkInputActivity();
+                    }
+                    else
+                    {
+                        Interlocked.Increment(ref _invalidPointerPackets);
+                    }
                     continue;
                 }
 
@@ -408,7 +460,11 @@ internal sealed class ReceiverHost : IAsyncDisposable
                 var messageType = obj.TryGetProperty("type", out var mt) ? mt.GetString() : null;
 
                 if (messageType == "event" && obj.TryGetProperty("event", out var ev))
+                {
                     ProcessEvent(ev);
+                    Interlocked.Increment(ref _inputEvents);
+                    MarkInputActivity();
+                }
                 else if (messageType == "clipboard_get")
                 {
                     var clipboard = ClipboardBridge.GetText();
@@ -544,27 +600,35 @@ internal sealed class ReceiverHost : IAsyncDisposable
         }
     }
 
-    private static void ProcessPointerPacket(byte[] data)
+    private bool ProcessPointerPacket(byte[] data)
     {
-        if (data == null || data.Length != 9) return;
+        if (data == null || data.Length != 9) return false;
 
         var kind = data[0];
         var a = BitConverter.ToSingle(data, 1);
         var b = BitConverter.ToSingle(data, 5);
 
+        if (float.IsNaN(a) || float.IsInfinity(a) || float.IsNaN(b) || float.IsInfinity(b))
+            return false;
+
         switch (kind)
         {
             case 1:
                 InputInjector.Move(a, b);
-                break;
+                return true;
             case 2:
                 InputInjector.Wheel(a);
-                break;
+                return true;
             case 3:
                 InputInjector.HWheel(a);
-                break;
+                return true;
+            default:
+                return false;
         }
     }
+
+    private void MarkInputActivity()
+        => Interlocked.Exchange(ref _lastInputUnixMs, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
 
     private static async Task<string?> ReceiveTextAsync(WebSocket ws, CancellationToken ct)
     {
