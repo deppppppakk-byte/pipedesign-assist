@@ -1,16 +1,4 @@
-KeyDeck v1.0.0 build trigger
-source_sha256=93155861dba1c5b49289bd3231c8cde18c84e61df74596915c98af640388a7bb
-android_package=in.tamishra.keydeck
-receiver=KeyDeckReceiver-v1.0.0.exe
-attempt=2 dependency-checksum-fix
-attempt=3 qr-lan-fallback-and-apk-identity-qc
-source_sha256=d9036e7c6eae3a0eb3f184bf38570c4965be48aae8c61bc83b871af62d956a20
-attempt=4 v1.1 stale-trust-repair-complete-keyboard
-source_sha256=a01283a547cd854dfc4971545eb8abc2fffefacf05619cd12a5948d83e7c384f
-attempt=5 v1.1 corrected-source-path
-attempt=6 v1.1 final-packaging
-source_sha256=a8599edfc3207c06c817d9a2e6195a729015dc96e94c6f041e84d60792883274
-attempt=7 v1.2 full-104-keyboard
-source_sha256=b88d95ec65d3ee5ca6829afb362d153967a1caf219319bbb18a8612cfa21d5a3
-attempt=8 v1.2 compile-fix
-source_sha256=3cd310bc47158953c9cba6891a9ac192c3c4488fc85293a3a987fa6bd3fe7cf8
+KeyDeck v1.2.1 combined render + connection fix
+source_sha256=89123bd81fd2eefa90e8d8e60898e8533f41121900fad489a6f9926815ce852a
+keyboard=104-visible-keys
+pairing=fresh-code-bypasses-stale-trust
