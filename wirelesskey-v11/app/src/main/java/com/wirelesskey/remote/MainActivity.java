@@ -1,6 +1,10 @@
 package com.wirelesskey.remote;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -32,6 +36,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.zxing.integration.android.IntentIntegrator;
+import com.google.zxing.integration.android.IntentResult;
+
 public class MainActivity extends Activity implements SecureLink.Listener {
     private static final int BG = Color.rgb(8,17,31);
     private static final int PANEL = Color.rgb(15,26,43);
@@ -53,8 +60,11 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     private final List<String> deviceHosts = new ArrayList<>();
 
     private FrameLayout sideContent;
-    private Button mouseTab, numTab, mediaTab, shortcutTab;
-    private LinearLayout shortcutGrid;
+    private Button mouseTab, numTab, mediaTab, shortcutTab, clipboardTab;
+    private LinearLayout shortcutGrid, macroGrid;
+    private EditText clipboardPreview;
+    private MacroStore macroStore;
+    private List<MacroStore.Macro> macros = new ArrayList<>();
 
     private boolean haptics = true;
     private boolean shiftOn = false;
@@ -99,8 +109,11 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         link = new SecureLink(this);
         link.setListener(this);
         haptics = link.loadHaptics();
+        macroStore = new MacroStore(this);
+        macros = macroStore.load();
 
         setContentView(buildUi());
+        reloadKnownPeersIntoSpinner();
     }
 
     private void applyImmersive() {
@@ -191,7 +204,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         bar.setPadding(dp(5),dp(3),dp(5),dp(3));
         bar.setBackground(bg(PANEL,10,Color.rgb(29,43,64)));
 
-        TextView brand = textView("WirelessKey 4.0", 12, TEXT, true);
+        TextView brand = textView("WirelessKey 4.1", 12, TEXT, true);
         bar.addView(brand, new LinearLayout.LayoutParams(dp(105), LinearLayout.LayoutParams.MATCH_PARENT));
 
         Button find = button("Find PC", 9);
@@ -206,9 +219,18 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         });
         bar.addView(find, new LinearLayout.LayoutParams(dp(67), dp(29)));
 
+        Button qr = button("QR", 9);
+        qr.setOnClickListener(v -> {
+            haptic();
+            startQrScan();
+        });
+        LinearLayout.LayoutParams qrLp = new LinearLayout.LayoutParams(dp(44), dp(29));
+        qrLp.leftMargin = dp(4);
+        bar.addView(qr, qrLp);
+
         deviceSpinner = new Spinner(this);
         deviceAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, new ArrayList<>());
-        deviceAdapter.add("Discovered PCs");
+        deviceAdapter.add("Remembered PCs");
         deviceSpinner.setAdapter(deviceAdapter);
         deviceSpinner.setBackground(bg(Color.rgb(9,19,33),7,BORDER));
         deviceSpinner.setPopupBackgroundDrawable(bg(PANEL,6,BORDER));
@@ -459,8 +481,8 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         side.setOrientation(LinearLayout.VERTICAL);
 
         LinearLayout tabs=row();
-        mouseTab=button("Mouse",8);numTab=button("Num",8);mediaTab=button("Media",8);shortcutTab=button("Shortcuts",8);
-        for(Button b:new Button[]{mouseTab,numTab,mediaTab,shortcutTab})tabs.addView(b,new LinearLayout.LayoutParams(0,dp(28),1f));
+        mouseTab=button("Mouse",8);numTab=button("Num",8);mediaTab=button("Media",8);shortcutTab=button("Shortcuts",8);clipboardTab=button("Clip",8);
+        for(Button b:new Button[]{mouseTab,numTab,mediaTab,shortcutTab,clipboardTab})tabs.addView(b,new LinearLayout.LayoutParams(0,dp(28),1f));
         side.addView(tabs,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,dp(28)));
 
         sideContent=new FrameLayout(this);
@@ -472,12 +494,13 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         numTab.setOnClickListener(v->{haptic();showSide("num");});
         mediaTab.setOnClickListener(v->{haptic();showSide("media");});
         shortcutTab.setOnClickListener(v->{haptic();showSide("shortcuts");});
+        clipboardTab.setOnClickListener(v->{haptic();showSide("clipboard");});
         showSide("mouse");
         return side;
     }
 
     private void setTabActive(Button active){
-        for(Button b:new Button[]{mouseTab,numTab,mediaTab,shortcutTab})
+        for(Button b:new Button[]{mouseTab,numTab,mediaTab,shortcutTab,clipboardTab})
             b.setBackground(bg(b==active?ACCENT:KEY,7,b==active?Color.rgb(59,130,246):BORDER));
     }
 
@@ -486,6 +509,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         if("mouse".equals(which)){setTabActive(mouseTab);sideContent.addView(buildMousePanel());}
         else if("num".equals(which)){setTabActive(numTab);sideContent.addView(buildNumpad());}
         else if("media".equals(which)){setTabActive(mediaTab);sideContent.addView(buildMediaPanel());}
+        else if("clipboard".equals(which)){setTabActive(clipboardTab);sideContent.addView(buildClipboardPanel());}
         else{setTabActive(shortcutTab);sideContent.addView(buildShortcutPanel());}
     }
 
