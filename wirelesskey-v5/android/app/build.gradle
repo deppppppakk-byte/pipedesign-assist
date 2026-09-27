@@ -1,0 +1,33 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'in.tamishra.wirelesskey'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'in.tamishra.wirelesskey'
+        minSdk 23
+        targetSdk 35
+        versionCode 50001
+        versionName '5.0.1'
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
+}
