@@ -39,6 +39,7 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -72,6 +73,9 @@ public class MainActivity extends Activity implements SecureLink.Listener {
     private Spinner deviceSpinner;
     private ArrayAdapter<String> deviceAdapter;
     private final List<String> deviceHosts = new ArrayList<>();
+    private final List<String> deviceFingerprints = new ArrayList<>();
+    private final List<String> deviceNames = new ArrayList<>();
+    private final List<Long> deviceLastSeen = new ArrayList<>();
 
     private FrameLayout sideContent;
     private FrameLayout workspaceHost;
@@ -150,6 +154,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         appRoot = buildUi();
         setContentView(appRoot);
         reloadKnownPeersIntoSpinner();
+        handler.postDelayed(this::autoConnectPreferredPc, 650);
     }
 
     private void applyImmersive() {
@@ -987,24 +992,160 @@ public class MainActivity extends Activity implements SecureLink.Listener {
 
     private void reloadKnownPeersIntoSpinner() {
         if (deviceAdapter == null) return;
+
+        String currentHost = hostInput == null ? "" : hostInput.getText().toString().trim();
+        String favoriteFp = link.loadFavoritePeerFingerprint();
+
         deviceHosts.clear();
+        deviceFingerprints.clear();
+        deviceNames.clear();
+        deviceLastSeen.clear();
         deviceAdapter.clear();
-        deviceAdapter.add("Remembered PCs");
+        deviceAdapter.add("Choose a remembered PC");
 
         try {
             JSONArray arr = new JSONArray(link.loadKnownPeersJson());
+            List<JSONObject> peers = new ArrayList<>();
             for (int i = 0; i < arr.length(); i++) {
                 JSONObject peer = arr.optJSONObject(i);
-                if (peer == null) continue;
-                String host = peer.optString("host", "");
-                String name = peer.optString("name", "WirelessKey PC");
-                if (host.isEmpty()) continue;
-                deviceHosts.add(host);
-                deviceAdapter.add(name + " · " + host);
+                if (peer != null && !peer.optString("host", "").trim().isEmpty()) peers.add(peer);
             }
+
+            Collections.sort(peers, (a,b) -> {
+                boolean af = a.optString("fingerprint", "").equalsIgnoreCase(favoriteFp);
+                boolean bf = b.optString("fingerprint", "").equalsIgnoreCase(favoriteFp);
+                if (af != bf) return af ? -1 : 1;
+                return Long.compare(b.optLong("lastSeen", 0L), a.optLong("lastSeen", 0L));
+            });
+
+            int selectPosition = 0;
+            for (JSONObject peer : peers) {
+                String host = peer.optString("host", "").trim();
+                String name = peer.optString("name", "WirelessKey PC").trim();
+                String fp = peer.optString("fingerprint", "").trim().toLowerCase(java.util.Locale.US);
+                long lastSeen = peer.optLong("lastSeen", 0L);
+
+                deviceHosts.add(host);
+                deviceFingerprints.add(fp);
+                deviceNames.add(name.isEmpty() ? "WirelessKey PC" : name);
+                deviceLastSeen.add(lastSeen);
+
+                boolean favorite = !favoriteFp.isEmpty() && fp.equalsIgnoreCase(favoriteFp);
+                String label = (favorite ? "★  " : "") +
+                        (name.isEmpty() ? "WirelessKey PC" : name) +
+                        "  ·  " + relativeLastSeen(lastSeen);
+                deviceAdapter.add(label);
+
+                if (host.equalsIgnoreCase(currentHost)) selectPosition = deviceHosts.size();
+            }
+
+            deviceSpinner.setSelection(selectPosition, false);
         } catch (Exception ignored) {
         }
         deviceAdapter.notifyDataSetChanged();
+    }
+
+    private String relativeLastSeen(long millis) {
+        if (millis <= 0L) return "remembered";
+        long age = Math.max(0L, System.currentTimeMillis() - millis);
+        if (age < 60_000L) return "just now";
+        if (age < 3_600_000L) return Math.max(1L, age / 60_000L) + "m ago";
+        if (age < 86_400_000L) return Math.max(1L, age / 3_600_000L) + "h ago";
+        if (age < 604_800_000L) return Math.max(1L, age / 86_400_000L) + "d ago";
+        return "trusted";
+    }
+
+    private int selectedPeerIndex() {
+        if (deviceSpinner == null) return -1;
+        int index = deviceSpinner.getSelectedItemPosition() - 1;
+        return index >= 0 && index < deviceHosts.size() ? index : -1;
+    }
+
+    private String selectedPcName() {
+        int index = selectedPeerIndex();
+        if (index >= 0 && index < deviceNames.size()) return deviceNames.get(index);
+        return "No PC selected";
+    }
+
+    private void autoConnectPreferredPc() {
+        String favorite = link.loadFavoritePeerFingerprint();
+        if (!favorite.isEmpty()) {
+            for (int i = 0; i < deviceFingerprints.size(); i++) {
+                if (favorite.equalsIgnoreCase(deviceFingerprints.get(i))) {
+                    String host = deviceHosts.get(i);
+                    if (link.hasTrustedTokenForHost(host)) {
+                        hostInput.setText(host);
+                        codeInput.setText("");
+                        if (deviceSpinner != null) deviceSpinner.setSelection(i + 1, false);
+                        link.connect(host, "");
+                        return;
+                    }
+                }
+            }
+        }
+
+        String lastHost = link.loadHost();
+        if (lastHost != null && !lastHost.trim().isEmpty() && link.hasTrustedTokenForHost(lastHost)) {
+            hostInput.setText(lastHost);
+            codeInput.setText("");
+            link.connect(lastHost, "");
+        }
+    }
+
+    private void favoriteSelectedPeer() {
+        int index = selectedPeerIndex();
+        if (index < 0) return;
+        link.setFavoritePeer(deviceFingerprints.get(index));
+        reloadKnownPeersIntoSpinner();
+        onStatus("connected", deviceNames.get(index) + " set as favorite");
+    }
+
+    private void renameSelectedPeer() {
+        int index = selectedPeerIndex();
+        if (index < 0) return;
+
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setText(deviceNames.get(index));
+        input.selectAll();
+
+        new AlertDialog.Builder(this)
+                .setTitle("Rename remembered PC")
+                .setView(input)
+                .setPositiveButton("Save", (d,w) -> {
+                    String name = input.getText().toString().trim();
+                    if (!name.isEmpty() && link.renameKnownPeer(deviceFingerprints.get(index), name)) {
+                        reloadKnownPeersIntoSpinner();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void forgetSelectedPeer() {
+        int index = selectedPeerIndex();
+        if (index < 0) return;
+
+        String host = deviceHosts.get(index);
+        String fp = deviceFingerprints.get(index);
+        String name = deviceNames.get(index);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Forget " + name + "?")
+                .setMessage("WirelessKey will remove the saved certificate and trusted token for this PC.")
+                .setPositiveButton("Forget", (d,w) -> {
+                    if (link.forgetKnownPeer(host, fp)) {
+                        if (hostInput != null && host.equalsIgnoreCase(hostInput.getText().toString().trim())) {
+                            link.disconnect();
+                            link.save("", "");
+                            hostInput.setText("");
+                            codeInput.setText("");
+                        }
+                        reloadKnownPeersIntoSpinner();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private LinearLayout buildKeyboard() {
