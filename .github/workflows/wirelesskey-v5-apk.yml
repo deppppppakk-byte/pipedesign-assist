@@ -9,6 +9,10 @@ on:
       - '.github/workflows/wirelesskey-v5-apk.yml'
   workflow_dispatch:
 
+concurrency:
+  group: wirelesskey-v5-apk
+  cancel-in-progress: true
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest
