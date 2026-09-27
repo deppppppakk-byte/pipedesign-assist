@@ -1,4 +1,4 @@
-# WirelessKey v4.1.1 Native Architecture
+# WirelessKey v4.2 Native Architecture
 
 Phase 1 replaces the WebView Android client and Python/PyInstaller Windows receiver with native implementations.
 
@@ -25,7 +25,7 @@ Phase 1 replaces the WebView Android client and Python/PyInstaller Windows recei
 - MSI/MSIX installer, persistent production signing and signed updates
 
 
-## v4.1.1 Phase 2
+## v4.2 Phase 2
 - QR pairing with PC address, certificate fingerprint and temporary code
 - Remembered/multi-PC selector
 - Phone-to-PC and PC-to-phone text clipboard
