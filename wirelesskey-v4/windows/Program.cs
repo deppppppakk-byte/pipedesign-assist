@@ -12,8 +12,13 @@ internal static class Program
                 NativeSelfTest.RunAsync().GetAwaiter().GetResult();
                 Environment.ExitCode = 0;
             }
-            catch
+            catch (Exception ex)
             {
+                try
+                {
+                    File.WriteAllText(Path.Combine(Path.GetTempPath(), "wirelesskey-v4-selftest-error.txt"), ex.ToString());
+                }
+                catch { }
                 Environment.ExitCode = 1;
             }
             return;
