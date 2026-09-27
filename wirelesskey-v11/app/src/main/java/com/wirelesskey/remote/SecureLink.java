@@ -481,6 +481,10 @@ public final class SecureLink {
         schedulePointerDrain();
     }
 
+    public void cancelPointerMotion() {
+        clearPointerBacklog();
+    }
+
     public long getCoalescedPointerEvents() {
         synchronized (pointerLock) { return coalescedPointerEvents; }
     }
