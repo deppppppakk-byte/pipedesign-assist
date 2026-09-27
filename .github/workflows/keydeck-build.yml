@@ -3,7 +3,7 @@ on:
   push:
     branches: [ wirelesskey-v5-apk-20260927 ]
     paths:
-      - 'keydeck-source.tgz.b64'
+      - 'keydeck-source.part*'
       - '.github/workflows/keydeck-build.yml'
   workflow_dispatch:
 
@@ -27,13 +27,19 @@ jobs:
       - name: Extract KeyDeck source
         run: |
           mkdir keydeck-build
-          base64 -d keydeck-source.tgz.b64 > /tmp/keydeck-source.tgz
+          cat keydeck-source.part00 keydeck-source.part01 keydeck-source.part02 keydeck-source.part03 | base64 -d > /tmp/keydeck-source.tgz
+          echo "8ec51d090b153f50c81ef3dc0855f0a7df04d02c716a1c695ae96060924981e5  /tmp/keydeck-source.tgz" | sha256sum -c -
           tar -xzf /tmp/keydeck-source.tgz -C keydeck-build
       - name: Build Android APK
         working-directory: keydeck-build/android
         run: gradle --no-daemon clean assembleDebug
       - name: Rename APK
         run: cp keydeck-build/android/app/build/outputs/apk/debug/app-debug.apk KeyDeck-v1.0.0-Android.apk
+      - name: Verify APK
+        run: |
+          test -s KeyDeck-v1.0.0-Android.apk
+          file KeyDeck-v1.0.0-Android.apk
+          sha256sum KeyDeck-v1.0.0-Android.apk
       - uses: actions/upload-artifact@v4
         with:
           name: KeyDeck-v1.0.0-Android
@@ -50,8 +56,12 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force keydeck-build | Out-Null
-          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\keydeck-source.tgz", [Convert]::FromBase64String((Get-Content keydeck-source.tgz.b64 -Raw)))
-          tar -xzf "$env:RUNNER_TEMP\keydeck-source.tgz" -C keydeck-build
+          $b64 = (Get-Content keydeck-source.part00 -Raw) + (Get-Content keydeck-source.part01 -Raw) + (Get-Content keydeck-source.part02 -Raw) + (Get-Content keydeck-source.part03 -Raw)
+          $tgz = "$env:RUNNER_TEMP\keydeck-source.tgz"
+          [IO.File]::WriteAllBytes($tgz, [Convert]::FromBase64String($b64))
+          $hash = (Get-FileHash $tgz -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne "8ec51d090b153f50c81ef3dc0855f0a7df04d02c716a1c695ae96060924981e5") { throw "Source SHA256 mismatch: $hash" }
+          tar -xzf $tgz -C keydeck-build
       - name: Build Windows GUI receiver
         working-directory: keydeck-build/receiver
         run: go build -trimpath -ldflags "-s -w -H=windowsgui" -o KeyDeckReceiver.exe .
@@ -63,6 +73,8 @@ jobs:
           Copy-Item keydeck-build/receiver/Allow-KeyDeck-Firewall.ps1 KeyDeck-Receiver/
           Copy-Item keydeck-build/receiver/README.txt KeyDeck-Receiver/
           Compress-Archive -Path KeyDeck-Receiver/* -DestinationPath KeyDeck-v1.0.0-Windows-Receiver.zip -Force
+          Get-FileHash KeyDeck-Receiver/KeyDeckReceiver.exe -Algorithm SHA256
+          Get-FileHash KeyDeck-v1.0.0-Windows-Receiver.zip -Algorithm SHA256
       - uses: actions/upload-artifact@v4
         with:
           name: KeyDeck-v1.0.0-Windows-Receiver
