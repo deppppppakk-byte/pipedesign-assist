@@ -526,7 +526,8 @@ public final class SecureLink {
                 if (ds != null) ds.close();
             }
 
-            final String targetHost = matchedHost.isEmpty() ? fallbackHost : matchedHost;
+            final boolean discoveredLive = !matchedHost.isEmpty();
+            final String targetHost = discoveredLive ? matchedHost : fallbackHost;
             if (targetHost.isEmpty()) {
                 postStatus("error", "QR scanned, but PC address is unavailable");
                 return;
@@ -544,9 +545,9 @@ public final class SecureLink {
             reconnectAttempt = 0;
 
             main.post(() -> {
-                postStatus("connecting", matchedHost.isEmpty()
-                        ? "Connecting using QR address..."
-                        : "PC located · secure connecting...");
+                postStatus("connecting", discoveredLive
+                        ? "PC located · secure connecting..."
+                        : "Connecting using QR address...");
                 connectSocket(true);
             });
         });
