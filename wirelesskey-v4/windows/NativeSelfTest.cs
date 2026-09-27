@@ -11,6 +11,19 @@ internal static class NativeSelfTest
         await using var host = new ReceiverHost();
         await host.StartAsync();
 
+        using (var qr = JsonDocument.Parse(host.PairingPayload))
+        {
+            var root = qr.RootElement;
+            if (root.GetProperty("type").GetString() != "wirelesskey_pair")
+                throw new InvalidOperationException("Invalid QR pairing type.");
+            if (root.GetProperty("code").GetString() != host.PairCode)
+                throw new InvalidOperationException("QR pairing code mismatch.");
+            if (root.GetProperty("fingerprint").GetString() != host.Fingerprint)
+                throw new InvalidOperationException("QR certificate identity mismatch.");
+            if (root.GetProperty("port").GetInt32() != host.Port)
+                throw new InvalidOperationException("QR receiver port mismatch.");
+        }
+
         using var ws = new ClientWebSocket();
         ws.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
         await ws.ConnectAsync(new Uri($"wss://127.0.0.1:{host.Port}/ws"), CancellationToken.None);
@@ -20,7 +33,7 @@ internal static class NativeSelfTest
             type = "auth",
             code = host.PairCode,
             device = "WirelessKey Native Self Test",
-            appVersion = "4.0"
+            appVersion = "4.1"
         });
         await ws.SendAsync(auth, WebSocketMessageType.Text, true, CancellationToken.None);
 
