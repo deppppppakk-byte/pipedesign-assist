@@ -64,14 +64,26 @@ jobs:
       - name: Restore and build
         run: dotnet build WirelessKeyReceiver.csproj -c Release
       - name: Run native encrypted self-test
-        run: dotnet run --project WirelessKeyReceiver.csproj -c Release -- --self-test
+        shell: pwsh
+        run: |
+          dotnet run --project WirelessKeyReceiver.csproj -c Release -- --self-test
+          if ($LASTEXITCODE -ne 0) {
+            $err = Join-Path $env:TEMP "wirelesskey-v4-selftest-error.txt"
+            if (Test-Path $err) { Get-Content $err }
+            exit $LASTEXITCODE
+          }
       - name: Publish self-contained native receiver
         run: dotnet publish WirelessKeyReceiver.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish
       - name: Test packaged EXE
         shell: pwsh
         run: |
+          Remove-Item (Join-Path $env:TEMP "wirelesskey-v4-selftest-error.txt") -ErrorAction SilentlyContinue
           $p = Start-Process -FilePath "$PWD\publish\WirelessKeyReceiver.exe" -ArgumentList "--self-test" -Wait -PassThru
-          if ($p.ExitCode -ne 0) { throw "Native EXE self-test failed: $($p.ExitCode)" }
+          if ($p.ExitCode -ne 0) {
+            $err = Join-Path $env:TEMP "wirelesskey-v4-selftest-error.txt"
+            if (Test-Path $err) { Get-Content $err }
+            throw "Native EXE self-test failed: $($p.ExitCode)"
+          }
       - name: Package native receiver
         shell: pwsh
         run: |
