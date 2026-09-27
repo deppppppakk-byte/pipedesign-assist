@@ -103,6 +103,39 @@ public final class TouchpadView extends View {
         scrollSpeed = Math.max(0.35f, Math.min(2.5f, value));
     }
 
+    public void setAcceleration(float value) {
+        acceleration = Math.max(0f, Math.min(0.085f, value));
+    }
+
+    public float getAcceleration() {
+        return acceleration;
+    }
+
+    public void applyPreset(String preset) {
+        String p = preset == null ? "balanced" : preset.toLowerCase();
+        switch (p) {
+            case "precision":
+                sensitivity = 0.82f;
+                acceleration = 0.010f;
+                scrollSpeed = 0.82f;
+                precisionMode = true;
+                break;
+            case "fast":
+                sensitivity = 1.55f;
+                acceleration = 0.052f;
+                scrollSpeed = 1.25f;
+                precisionMode = false;
+                break;
+            default:
+                sensitivity = 1.18f;
+                acceleration = 0.032f;
+                scrollSpeed = 1.0f;
+                precisionMode = false;
+                break;
+        }
+        invalidate();
+    }
+
     private float pointerGain(float dx, float dy) {
         float speed = (float)Math.hypot(dx, dy);
         float base = sensitivity * (precisionMode ? 0.58f : 1f);
