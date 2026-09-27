@@ -34,7 +34,6 @@ internal sealed class MainForm : Form
         _host.Error += HostError;
 
         BuildUi();
-        RefreshState();
 
         var menu = new ContextMenuStrip();
         menu.Items.Add("Show WirelessKey", null, (_, _) => ShowFromTray());
@@ -56,6 +55,7 @@ internal sealed class MainForm : Form
             ContextMenuStrip = menu
         };
         _tray.DoubleClick += (_, _) => ShowFromTray();
+        RefreshState();
 
         Shown += (_, _) =>
         {
