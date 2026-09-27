@@ -22,7 +22,7 @@ jobs:
       - name: Verify v1.2.2 source and regressions
         shell: bash
         run: |
-          echo "a6b162bfdbae071e4517976ad1dae465904cd5981b72f7b991372127e2a4f1e2  keydeck-ci/KeyDeck-v1.2.2-CI-Source.zip" | sha256sum -c -
+          echo "d362ef0bb2502a4bd46a9a5e589d94853068ef39cc13f6b0940264c92ba08b35  keydeck-ci/KeyDeck-v1.2.2-CI-Source.zip" | sha256sum -c -
           rm -rf /tmp/keydeck
           mkdir -p /tmp/keydeck
           unzip -q keydeck-ci/KeyDeck-v1.2.2-CI-Source.zip -d /tmp/keydeck

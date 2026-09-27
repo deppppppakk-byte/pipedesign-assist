@@ -1,5 +1,3 @@
-KeyDeck v1.2.2 duplicate-receiver ownership fix
-source_sha256=a6b162bfdbae071e4517976ad1dae465904cd5981b72f7b991372127e2a4f1e2
-keyboard=104-visible
-pairing=fresh-code
-single_receiver=tcp-8765-must-bind-before-ui
+KeyDeck v1.2.2 rebuild after version identity fix
+source_sha256=d362ef0bb2502a4bd46a9a5e589d94853068ef39cc13f6b0940264c92ba08b35
+single_receiver=tcp-8765-owner-before-ui
