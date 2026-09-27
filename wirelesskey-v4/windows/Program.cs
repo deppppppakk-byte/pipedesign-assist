@@ -5,6 +5,20 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        if (args.Any(a => string.Equals(a, "--self-test", StringComparison.OrdinalIgnoreCase)))
+        {
+            try
+            {
+                NativeSelfTest.RunAsync().GetAwaiter().GetResult();
+                Environment.ExitCode = 0;
+            }
+            catch
+            {
+                Environment.ExitCode = 1;
+            }
+            return;
+        }
+
         ApplicationConfiguration.Initialize();
 
         using var startupCts = new CancellationTokenSource(TimeSpan.FromSeconds(12));
