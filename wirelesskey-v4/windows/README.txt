@@ -45,3 +45,18 @@ V4.5 PHASE 2
 - Remembered PCs on Android
 - Two-way text clipboard bridge
 - Persistent editable macro buttons
+
+
+INSTALLER
+---------
+For normal Windows installation, use WirelessKeySetup-4.5.exe.
+
+The installer:
+- installs the self-contained receiver
+- creates Start Menu shortcuts
+- can optionally create a desktop shortcut
+- can optionally start WirelessKey when you sign in
+- adds Private-network firewall rules for TCP 8765-8775 and UDP 8766
+- removes those firewall rules during uninstall
+
+The installer does not delete your paired-device trust data from %APPDATA%\WirelessKey during uninstall.
