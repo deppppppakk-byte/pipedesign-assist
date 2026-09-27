@@ -16,6 +16,12 @@
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <ApplicationIcon>WirelessKey.ico</ApplicationIcon>
+    <Version>4.5.0</Version>
+    <AssemblyVersion>4.5.0.0</AssemblyVersion>
+    <FileVersion>4.5.0.0</FileVersion>
+    <Product>WirelessKey Receiver</Product>
+    <Company>WirelessKey</Company>
+    <Authors>WirelessKey</Authors>
   </PropertyGroup>
 
   <Target Name="GenerateWirelessKeyIcon" BeforeTargets="BeforeBuild" Condition="!Exists('WirelessKey.ico')">
