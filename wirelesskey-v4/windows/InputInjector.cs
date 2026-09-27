@@ -4,6 +4,11 @@ namespace WirelessKey.NativeReceiver;
 
 internal static class InputInjector
 {
+    private static readonly object PointerGate = new();
+    private static double _moveRemainderX;
+    private static double _moveRemainderY;
+    private static double _wheelRemainder;
+    private static double _hWheelRemainder;
     private const uint INPUT_MOUSE = 0;
     private const uint INPUT_KEYBOARD = 1;
     private const uint KEYEVENTF_KEYUP = 0x0002;
@@ -188,10 +193,55 @@ internal static class InputInjector
     }
 
     public static void Move(double dx, double dy)
-        => SendMouse(MOUSEEVENTF_MOVE, (int)Math.Round(dx), (int)Math.Round(dy));
+    {
+        lock (PointerGate)
+        {
+            var x = dx + _moveRemainderX;
+            var y = dy + _moveRemainderY;
 
-    public static void Wheel(int delta) => SendMouse(MOUSEEVENTF_WHEEL, data: unchecked((uint)delta));
-    public static void HWheel(int delta) => SendMouse(MOUSEEVENTF_HWHEEL, data: unchecked((uint)delta));
+            var ix = (int)Math.Truncate(x);
+            var iy = (int)Math.Truncate(y);
+
+            _moveRemainderX = x - ix;
+            _moveRemainderY = y - iy;
+
+            if (ix != 0 || iy != 0)
+                SendMouse(MOUSEEVENTF_MOVE, ix, iy);
+        }
+    }
+
+    public static void Wheel(double delta)
+    {
+        lock (PointerGate)
+        {
+            var value = delta + _wheelRemainder;
+            var whole = (int)Math.Truncate(value);
+            _wheelRemainder = value - whole;
+            if (whole != 0)
+                SendMouse(MOUSEEVENTF_WHEEL, data: unchecked((uint)whole));
+        }
+    }
+
+    public static void HWheel(double delta)
+    {
+        lock (PointerGate)
+        {
+            var value = delta + _hWheelRemainder;
+            var whole = (int)Math.Truncate(value);
+            _hWheelRemainder = value - whole;
+            if (whole != 0)
+                SendMouse(MOUSEEVENTF_HWHEEL, data: unchecked((uint)whole));
+        }
+    }
+
+    public static void ResetPointerRemainders()
+    {
+        lock (PointerGate)
+        {
+            _moveRemainderX = _moveRemainderY = 0;
+            _wheelRemainder = _hWheelRemainder = 0;
+        }
+    }
 
     public static void MouseButton(string button, string action)
     {
