@@ -3,3 +3,5 @@ source_sha256=93155861dba1c5b49289bd3231c8cde18c84e61df74596915c98af640388a7bb
 android_package=in.tamishra.keydeck
 receiver=KeyDeckReceiver-v1.0.0.exe
 attempt=2 dependency-checksum-fix
+attempt=3 qr-lan-fallback-and-apk-identity-qc
+source_sha256=d9036e7c6eae3a0eb3f184bf38570c4965be48aae8c61bc83b871af62d956a20
