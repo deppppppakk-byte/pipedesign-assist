@@ -589,7 +589,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
         LinearLayout heading=new LinearLayout(this);
         heading.setOrientation(LinearLayout.VERTICAL);
         TextView title=textView("Control Center",15.5f,TEXT,true);
-        TextView subtitle=textView("WirelessKey 4.2.1 · Precision Edition",7.4f,MUTED,false);
+        TextView subtitle=textView("WirelessKey 4.3 · Precision Edition",7.4f,MUTED,false);
         heading.addView(title,new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,0,1.15f));
         heading.addView(subtitle,new LinearLayout.LayoutParams(
