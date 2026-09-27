@@ -87,15 +87,8 @@ jobs:
       - name: Package native receiver
         shell: pwsh
         run: |
-          Copy-Item ../../wirelesskey-v11/receiver/ALLOW_FIREWALL_PRIVATE.bat publish/
-          Copy-Item ../../wirelesskey-v11/receiver/README.txt publish/README-v3.txt
-          @"
-          WIRELESSKEY 4.0 NATIVE RECEIVER
-          ================================
-          WirelessKey v4 uses a native .NET Windows receiver and native Android UI.
-          Run WirelessKeyReceiver.exe. The app stays in the system tray when closed.
-          If discovery is blocked, run ALLOW_FIREWALL_PRIVATE.bat as Administrator once.
-          "@ | Set-Content publish/README.txt
+          Copy-Item ALLOW_FIREWALL_PRIVATE.bat publish/
+          Copy-Item README.txt publish/
           Compress-Archive -Path publish/* -DestinationPath WirelessKey-v4.0-Native-Windows.zip -Force
           Expand-Archive WirelessKey-v4.0-Native-Windows.zip verify -Force
           if (-not (Test-Path verify/WirelessKeyReceiver.exe)) { throw "Receiver missing from package" }
