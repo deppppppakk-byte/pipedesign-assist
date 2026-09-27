@@ -183,6 +183,88 @@ public final class SecureLink {
         }
     }
 
+    public String loadFavoritePeerFingerprint() {
+        return prefs.getString("favorite_peer_fp", "");
+    }
+
+    public void setFavoritePeer(String fingerprint) {
+        String fp = fingerprint == null ? "" : fingerprint.trim().toLowerCase(Locale.US);
+        prefs.edit().putString("favorite_peer_fp", fp).apply();
+    }
+
+    public boolean renameKnownPeer(String fingerprint, String newName) {
+        String fp = fingerprint == null ? "" : fingerprint.trim().toLowerCase(Locale.US);
+        String name = newName == null ? "" : newName.trim();
+        if (fp.isEmpty() || name.isEmpty()) return false;
+
+        try {
+            JSONArray old = new JSONArray(loadKnownPeersJson());
+            JSONArray fresh = new JSONArray();
+            boolean changed = false;
+
+            for (int i = 0; i < old.length(); i++) {
+                JSONObject peer = old.optJSONObject(i);
+                if (peer == null) continue;
+                if (peer.optString("fingerprint", "").equalsIgnoreCase(fp)) {
+                    peer.put("name", name);
+                    changed = true;
+                }
+                fresh.put(peer);
+            }
+
+            if (changed) {
+                prefs.edit().putString("known_peers", fresh.toString()).apply();
+            }
+            return changed;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    public boolean forgetKnownPeer(String rawHost, String fingerprint) {
+        String host = normalizeHost(rawHost);
+        String fp = fingerprint == null ? "" : fingerprint.trim().toLowerCase(Locale.US);
+        if (host.isEmpty() && fp.isEmpty()) return false;
+
+        try {
+            JSONArray old = new JSONArray(loadKnownPeersJson());
+            JSONArray fresh = new JSONArray();
+            boolean removed = false;
+
+            for (int i = 0; i < old.length(); i++) {
+                JSONObject peer = old.optJSONObject(i);
+                if (peer == null) continue;
+                String peerFp = peer.optString("fingerprint", "").trim().toLowerCase(Locale.US);
+                String peerHost = normalizeHost(peer.optString("host", ""));
+                boolean match = (!fp.isEmpty() && peerFp.equalsIgnoreCase(fp))
+                        || (!host.isEmpty() && peerHost.equalsIgnoreCase(host));
+                if (match) {
+                    removed = true;
+                    continue;
+                }
+                fresh.put(peer);
+            }
+
+            if (removed) {
+                android.content.SharedPreferences.Editor edit = prefs.edit()
+                        .putString("known_peers", fresh.toString());
+
+                if (!host.isEmpty()) edit.remove(certKey(host));
+                if (!fp.isEmpty()) {
+                    edit.remove(tokenKey(fp));
+                    if (fp.equalsIgnoreCase(loadFavoritePeerFingerprint())) {
+                        edit.remove("favorite_peer_fp");
+                    }
+                }
+                edit.apply();
+                if (!host.isEmpty()) discoveredFingerprints.remove(host);
+            }
+            return removed;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
     public boolean hasTrustedTokenForHost(String rawHost) {
         String host = normalizeHost(rawHost);
         if (host.isEmpty()) return false;
@@ -356,7 +438,7 @@ public final class SecureLink {
                     String token = prefs.getString(tokenKey(finalFingerprint), "");
                     if (!token.isEmpty()) auth.put("token", token);
                     auth.put("device", android.os.Build.MODEL == null ? "Android" : android.os.Build.MODEL);
-                    auth.put("appVersion", "4.3");
+                    auth.put("appVersion", "4.4");
                     ws.send(auth.toString());
                     postStatus("authenticating", "Authenticating...");
                 } catch (Exception e) {
