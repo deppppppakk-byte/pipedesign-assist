@@ -23,13 +23,16 @@ try {
     Get-NetFirewallRule -DisplayName $tcpName -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
     Get-NetFirewallRule -DisplayName $udpName -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
 
-    New-NetFirewallRule -DisplayName $tcpName -Direction Inbound -Action Allow -Profile Private -Protocol TCP -LocalPort "8765-8775" -Program $ProgramPath -Enabled True | Out-Null
+    foreach ($port in 8765..8775) {
+        New-NetFirewallRule -DisplayName $tcpName -Direction Inbound -Action Allow -Profile Private -Protocol TCP -LocalPort $port -Program $ProgramPath -Enabled True | Out-Null
+    }
     New-NetFirewallRule -DisplayName $udpName -Direction Inbound -Action Allow -Profile Private -Protocol UDP -LocalPort 8766 -Program $ProgramPath -Enabled True | Out-Null
 
     $tcp = Get-NetFirewallRule -DisplayName $tcpName -ErrorAction SilentlyContinue
     $udp = Get-NetFirewallRule -DisplayName $udpName -ErrorAction SilentlyContinue
-    Write-Log ("TCP rule present: " + [bool]$tcp)
+    Write-Log ("TCP rule count: " + @($tcp).Count)
     Write-Log ("UDP rule present: " + [bool]$udp)
+    if (@($tcp).Count -ne 11) { throw "Expected 11 TCP fallback rules but found $(@($tcp).Count)." }
 
     if (-not $tcp) { throw "TCP firewall rule was not created." }
     if (-not $udp) { throw "UDP firewall rule was not created." }
