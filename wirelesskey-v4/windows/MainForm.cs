@@ -5,7 +5,7 @@ namespace WirelessKey.NativeReceiver;
 internal sealed class MainForm : Form
 {
     private readonly ReceiverHost _host;
-    private readonly NotifyIcon _tray;
+    private readonly NotifyIcon _tray = null!;
     private readonly Label _statusValue = new();
     private readonly Label _pcValue = new();
     private readonly Label _ipValue = new();
