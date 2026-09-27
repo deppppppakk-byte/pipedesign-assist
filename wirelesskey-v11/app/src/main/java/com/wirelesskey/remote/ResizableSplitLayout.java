@@ -55,6 +55,16 @@ public final class ResizableSplitLayout extends LinearLayout {
         return ratio;
     }
 
+    public void setRatio(float value) {
+        ratio = clamp(value);
+        if (first != null && second != null) applyRatio();
+        if (ratioListener != null) ratioListener.onRatioChanged(ratio);
+    }
+
+    public void resetBalanced() {
+        setRatio(0.68f);
+    }
+
     private boolean onDividerTouch(View v, MotionEvent event) {
         if (first == null || second == null) return false;
 
