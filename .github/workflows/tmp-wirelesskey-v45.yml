@@ -84,7 +84,9 @@ jobs:
           if (-not (Select-String MainForm.cs -Pattern "ShowDiagnostics" -Quiet)) { throw "Diagnostics UI missing" }
           if (-not (Select-String NativeSelfTest.cs -Pattern "diagnostics.PointerPackets" -Quiet)) { throw "Diagnostics self-test missing" }
           if (-not (Select-String WirelessKeySetup.iss -Pattern "PrivilegesRequired=admin" -Quiet)) { throw "Installer elevation missing" }
-          if (-not (Select-String WirelessKeySetup.iss -Pattern "WirelessKey Receiver TCP" -Quiet)) { throw "Firewall rule missing" }
+          if (-not (Select-String install-firewall.ps1 -Pattern "WirelessKey Receiver TCP" -Quiet)) { throw "TCP firewall rule missing" }
+          if (-not (Select-String install-firewall.ps1 -Pattern "New-NetFirewallRule" -Quiet)) { throw "PowerShell firewall creation missing" }
+          if (-not (Select-String remove-firewall.ps1 -Pattern "Remove-NetFirewallRule" -Quiet)) { throw "Firewall cleanup helper missing" }
           if (-not (Select-String sign-release.ps1 -Pattern "signtool.exe" -Quiet)) { throw "Signing helper missing" }
 
       - name: Build receiver
