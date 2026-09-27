@@ -393,21 +393,29 @@ public class MainActivity extends Activity implements SecureLink.Listener {
                 return style((TextView)super.getDropDownView(position,convertView,parent),true);
             }
         };
-        deviceAdapter.add("Remembered PCs");
-        deviceSpinner.setAdapter(deviceAdapter);
-        deviceSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
-            @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
-                if(position>0 && position-1<deviceHosts.size()){
-                    hostInput.setText(deviceHosts.get(position-1));
-                    codeInput.setText("");
-                }
-            }
-        });
+        deviceAdapter.add("Choose a remembered PC");
+        bindDeviceSpinner(deviceSpinner);
 
         connectButton = button("Connect",8);
         hapticButton = button("Haptic",8);
         return bar;
+    }
+
+    private void bindDeviceSpinner(Spinner spinner) {
+        if (spinner == null) return;
+        spinner.setAdapter(deviceAdapter);
+        spinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                int index = position - 1;
+                if (index >= 0 && index < deviceHosts.size()) {
+                    hostInput.setText(deviceHosts.get(index));
+                    codeInput.setText("");
+                }
+            }
+        });
     }
 
     private View buildWorkspaceRail() {
@@ -630,7 +638,7 @@ public class MainActivity extends Activity implements SecureLink.Listener {
                 LinearLayout.LayoutParams.MATCH_PARENT,dp(28)));
 
         deviceSpinner = new Spinner(this);
-        deviceSpinner.setAdapter(deviceAdapter);
+        bindDeviceSpinner(deviceSpinner);
         deviceSpinner.setBackground(gradient(
                 Color.rgb(29,34,42),
                 Color.rgb(24,28,35),
