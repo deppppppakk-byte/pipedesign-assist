@@ -33,7 +33,7 @@ internal static class NativeSelfTest
             type = "auth",
             code = host.PairCode,
             device = "WirelessKey Native Self Test",
-            appVersion = "4.1.1"
+            appVersion = "4.2"
         });
         await ws.SendAsync(auth, WebSocketMessageType.Text, true, CancellationToken.None);
 
@@ -61,6 +61,32 @@ internal static class NativeSelfTest
 
         if (!gotPong)
             throw new InvalidOperationException("Native receiver ping/pong self-test failed.");
+
+        var pointer = new byte[9];
+        pointer[0] = 1;
+        BitConverter.GetBytes(0f).CopyTo(pointer, 1);
+        BitConverter.GetBytes(0f).CopyTo(pointer, 5);
+        await ws.SendAsync(pointer, WebSocketMessageType.Binary, true, CancellationToken.None);
+
+        var stamp2 = stamp + 1;
+        var ping2 = JsonSerializer.SerializeToUtf8Bytes(new { type = "ping", ts = stamp2 });
+        await ws.SendAsync(ping2, WebSocketMessageType.Text, true, CancellationToken.None);
+
+        var binaryPathHealthy = false;
+        var secondDeadline = DateTime.UtcNow.AddSeconds(5);
+        while (DateTime.UtcNow < secondDeadline)
+        {
+            using var doc = JsonDocument.Parse(await ReceiveTextAsync(ws));
+            if (doc.RootElement.TryGetProperty("type", out var type)
+                && type.GetString() == "pong"
+                && doc.RootElement.GetProperty("ts").GetInt64() == stamp2)
+            {
+                binaryPathHealthy = true;
+                break;
+            }
+        }
+        if (!binaryPathHealthy)
+            throw new InvalidOperationException("Binary pointer fast-path disrupted the connection.");
 
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "self-test complete", CancellationToken.None);
         await host.StopAsync();
