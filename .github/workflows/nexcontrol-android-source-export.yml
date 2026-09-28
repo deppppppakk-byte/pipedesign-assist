@@ -1,0 +1,36 @@
+name: NexControl Android Source Export
+
+on:
+  push:
+    branches:
+      - temp/nexcontrol-v11-railway-build
+    paths:
+      - ".github/workflows/nexcontrol-android-source-export.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download Android source archive
+        run: |
+          set -euo pipefail
+          url="https://nexcontrol-apk-final-production.up.railway.app/NexControl-v1.1.0-Android-Source.tar.xz"
+          curl -fL --retry 5 --retry-delay 2 "$url" -o NexControl-v1.1.0-Android-Source.tar.xz
+          test -s NexControl-v1.1.0-Android-Source.tar.xz
+          sha256sum NexControl-v1.1.0-Android-Source.tar.xz > NexControl-v1.1.0-Android-Source.tar.xz.sha256
+          ls -lh NexControl-v1.1.0-Android-Source.tar.xz
+
+      - name: Upload Android source
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexControl-v1.1.0-Android-Source
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            NexControl-v1.1.0-Android-Source.tar.xz
+            NexControl-v1.1.0-Android-Source.tar.xz.sha256
