@@ -100,12 +100,19 @@ jobs:
         shell: pwsh
         run: |
           Push-Location src
-          $isccCandidates = @(
-            "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe",
-            "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
-          )
-          $iscc = $isccCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if (-not $iscc) { throw "Inno Setup compiler not found." }
+          $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source)
+          if (-not $iscc) {
+            $isccCandidates = @(
+              "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+              "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+              "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+            )
+            $iscc = $isccCandidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+          }
+          if (-not $iscc) {
+            Get-ChildItem "C:\Program Files*" -Filter ISCC.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 10 -ExpandProperty FullName
+            throw "Inno Setup compiler not found."
+          }
 
           & $iscc "installer\NexControlHost.iss"
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed." }
