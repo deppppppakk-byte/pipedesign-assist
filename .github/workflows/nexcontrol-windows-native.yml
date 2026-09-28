@@ -1,0 +1,172 @@
+name: NexControl Windows Native
+
+on:
+  push:
+    branches:
+      - temp/nexcontrol-v11-railway-build
+    paths:
+      - ".github/workflows/nexcontrol-windows-native.yml"
+      - "nexcontrol-build/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-host:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      BUILD_KEY: ${{ secrets.BUILD_KEY }}
+
+    steps:
+      - name: Checkout protected build branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Reconstruct NexControl source
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:BUILD_KEY)) {
+            throw "Repository secret BUILD_KEY is missing."
+          }
+
+          $dir = Join-Path $PWD "nexcontrol-build"
+          $parts = @(
+            "windows-source.part00",
+            "windows-source.part01",
+            "windows-source.part02a",
+            "windows-source.part02b",
+            "windows-source.part03a",
+            "windows-source.part03b",
+            "windows-source.part03c",
+            "windows-source.part03d"
+          )
+
+          $payload = ""
+          foreach ($p in $parts) {
+            $payload += (Get-Content -Raw (Join-Path $dir $p)).Trim()
+          }
+
+          $hex = ""
+          foreach ($p in @("windows-source.part04h0","windows-source.part04h1","windows-source.part04h2","windows-source.part04h3")) {
+            $hex += (Get-Content -Raw (Join-Path $dir $p)).Trim()
+          }
+
+          $ascii = -join (0..(($hex.Length / 2) - 1) | ForEach-Object {
+            [char][Convert]::ToByte($hex.Substring($_ * 2, 2), 16)
+          })
+          $payload += $ascii
+
+          $encPath = Join-Path $env:RUNNER_TEMP "nexcontrol-payload.enc"
+          $xzPath  = Join-Path $env:RUNNER_TEMP "nexcontrol-payload.tar.xz"
+          [IO.File]::WriteAllBytes($encPath, [Convert]::FromBase64String($payload))
+
+          & openssl enc -d -aes-256-cbc -pbkdf2 -pass env:BUILD_KEY -in $encPath -out $xzPath
+          if ($LASTEXITCODE -ne 0) { throw "OpenSSL source reconstruction failed." }
+
+          $expected = "5fbf620605e7fb2b340851c833e02f2630b43f4dbf6faf3df249efdd1a1cf425"
+          $actual = (Get-FileHash $xzPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            throw "Protected NexControl source checksum mismatch."
+          }
+
+          New-Item -ItemType Directory -Force -Path src | Out-Null
+          tar -xJf $xzPath -C src
+          if ($LASTEXITCODE -ne 0) { throw "Source extraction failed." }
+
+          @(
+            "src/host/tray_host.py",
+            "src/host/server.py",
+            "src/host/requirements.txt",
+            "src/host/requirements-windows.txt",
+            "src/host/requirements-webrtc.txt",
+            "src/installer/NexControlHost.iss"
+          ) | ForEach-Object {
+            if (-not (Test-Path $_)) { throw "Missing required source: $_" }
+          }
+
+      - name: Install Windows host dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          python -m pip install -r src/host/requirements.txt
+          python -m pip install -r src/host/requirements-windows.txt
+          python -m pip install -r src/host/requirements-webrtc.txt
+          python -m pip install pyinstaller "livekit==1.1.19"
+
+      - name: Protocol regression QA
+        shell: pwsh
+        run: |
+          Push-Location src
+          python -m compileall -q host relay tests
+          if (Test-Path tests/test_v10.py) {
+            python tests/test_v10.py
+          }
+          Pop-Location
+
+      - name: Build NexControlHost.exe
+        shell: pwsh
+        run: |
+          Push-Location src
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name NexControlHost --add-data "mobile;mobile" --collect-all aiortc --collect-all av --collect-all livekit host/tray_host.py
+          if (-not (Test-Path "dist/NexControlHost.exe")) {
+            throw "PyInstaller did not create NexControlHost.exe."
+          }
+          New-Item -ItemType Directory -Force -Path host/dist | Out-Null
+          Copy-Item "dist/NexControlHost.exe" "host/dist/NexControlHost.exe" -Force
+          Pop-Location
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          Push-Location src
+          $isccCandidates = @(
+            "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+          )
+          $iscc = $isccCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw "Inno Setup compiler not found." }
+
+          & $iscc "installer\NexControlHost.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed." }
+
+          $setup = "installer\Output\NexControlHost-1.1.0-Setup.exe"
+          if (-not (Test-Path $setup)) {
+            throw "Installer output missing: $setup"
+          }
+          Pop-Location
+
+      - name: Create SHA-256 files
+        shell: pwsh
+        run: |
+          $hostExe = "src/host/dist/NexControlHost.exe"
+          $setupExe = "src/installer/Output/NexControlHost-1.1.0-Setup.exe"
+
+          $hostHash = (Get-FileHash $hostExe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $setupHash = (Get-FileHash $setupExe -Algorithm SHA256).Hash.ToLowerInvariant()
+
+          "$hostHash  NexControlHost.exe" | Set-Content -NoNewline "src/host/dist/NexControlHost.exe.sha256"
+          "$setupHash  NexControlHost-1.1.0-Setup.exe" | Set-Content -NoNewline "src/installer/Output/NexControlHost-1.1.0-Setup.exe.sha256"
+
+      - name: Upload NexControl Windows release
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexControl-v1.1.0-Windows
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            src/host/dist/NexControlHost.exe
+            src/host/dist/NexControlHost.exe.sha256
+            src/installer/Output/NexControlHost-1.1.0-Setup.exe
+            src/installer/Output/NexControlHost-1.1.0-Setup.exe.sha256
