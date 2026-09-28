@@ -15,64 +15,50 @@ jobs:
   windows-host:
     runs-on: windows-latest
     timeout-minutes: 45
-    env:
-      BUILD_KEY: ${{ secrets.BUILD_KEY }}
 
     steps:
-      - name: Checkout NexControl protected build branch
+      - name: Checkout workflow branch
         uses: actions/checkout@v4
-        with:
-          ref: temp/nexcontrol-v11-railway-build
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Reconstruct protected source
+      - name: Download verified NexControl source
         shell: pwsh
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:BUILD_KEY)) {
-            throw "Repository secret BUILD_KEY is missing."
+          $base = "https://nexcontrol-v1-1-android-build-production.up.railway.app"
+          $bundle = Join-Path $env:RUNNER_TEMP "NexControl-v1.1.0-windows-source.tar.gz"
+          $checksumFile = "$bundle.sha256"
+
+          Invoke-WebRequest "$base/NexControl-v1.1.0-windows-source.tar.gz" -OutFile $bundle
+          Invoke-WebRequest "$base/NexControl-v1.1.0-windows-source.tar.gz.sha256" -OutFile $checksumFile
+
+          if (-not (Test-Path $bundle) -or (Get-Item $bundle).Length -le 0) {
+            throw "NexControl source bundle download failed."
           }
 
-          $dir = Join-Path $PWD "nexcontrol-build"
-          $payload = ""
-          foreach ($p in @(
-            "windows-source.part00","windows-source.part01",
-            "windows-source.part02a","windows-source.part02b",
-            "windows-source.part03a","windows-source.part03b",
-            "windows-source.part03c","windows-source.part03d"
-          )) {
-            $payload += (Get-Content -Raw (Join-Path $dir $p)).Trim()
+          $expected = ((Get-Content -Raw $checksumFile).Trim() -split "\s+")[0].ToLowerInvariant()
+          $actual = (Get-FileHash $bundle -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            throw "NexControl source bundle checksum mismatch."
           }
-
-          $hex = ""
-          foreach ($p in @(
-            "windows-source.part04h0","windows-source.part04h1",
-            "windows-source.part04h2","windows-source.part04h3"
-          )) {
-            $hex += (Get-Content -Raw (Join-Path $dir $p)).Trim()
-          }
-
-          $payload += -join (0..(($hex.Length / 2) - 1) | ForEach-Object {
-            [char][Convert]::ToByte($hex.Substring($_ * 2, 2), 16)
-          })
-
-          $enc = Join-Path $env:RUNNER_TEMP "nexcontrol.enc"
-          $xz  = Join-Path $env:RUNNER_TEMP "nexcontrol.tar.xz"
-          [IO.File]::WriteAllBytes($enc, [Convert]::FromBase64String($payload))
-
-          & openssl enc -d -aes-256-cbc -pbkdf2 -pass env:BUILD_KEY -in $enc -out $xz
-          if ($LASTEXITCODE -ne 0) { throw "Source decryption failed." }
-
-          $expected = "5fbf620605e7fb2b340851c833e02f2630b43f4dbf6faf3df249efdd1a1cf425"
-          $actual = (Get-FileHash $xz -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($actual -ne $expected) { throw "Source checksum mismatch." }
 
           New-Item -ItemType Directory -Force -Path src | Out-Null
-          tar -xJf $xz -C src
+          tar -xzf $bundle -C src
           if ($LASTEXITCODE -ne 0) { throw "Source extraction failed." }
+
+          @(
+            "src/host/tray_host.py",
+            "src/host/server.py",
+            "src/host/requirements.txt",
+            "src/host/requirements-windows.txt",
+            "src/host/requirements-webrtc.txt",
+            "src/installer/NexControlHost.iss"
+          ) | ForEach-Object {
+            if (-not (Test-Path $_)) { throw "Missing required source: $_" }
+          }
 
       - name: Install Windows host dependencies
         shell: pwsh
@@ -114,8 +100,13 @@ jobs:
             "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
           ) | Where-Object { Test-Path $_ } | Select-Object -First 1
           if (-not $iscc) { throw "ISCC.exe not found." }
+
           & $iscc "installer\NexControlHost.iss"
           if ($LASTEXITCODE -ne 0) { throw "Installer build failed." }
+
+          if (-not (Test-Path "installer\Output\NexControlHost-1.1.0-Setup.exe")) {
+            throw "NexControl installer output missing."
+          }
           Pop-Location
 
       - name: Create checksums
@@ -123,7 +114,6 @@ jobs:
         run: |
           $hostExe = "src/host/dist/NexControlHost.exe"
           $setupExe = "src/installer/Output/NexControlHost-1.1.0-Setup.exe"
-          if (-not (Test-Path $setupExe)) { throw "Setup EXE missing." }
           $hostHash = (Get-FileHash $hostExe -Algorithm SHA256).Hash.ToLowerInvariant()
           $setupHash = (Get-FileHash $setupExe -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hostHash  NexControlHost.exe" | Set-Content -NoNewline "src/host/dist/NexControlHost.exe.sha256"
