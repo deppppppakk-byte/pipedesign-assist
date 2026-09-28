@@ -1,0 +1,152 @@
+name: NexControl Android Verified
+
+on:
+  push:
+    branches:
+      - temp/nexcontrol-v11-railway-build
+    paths:
+      - ".github/workflows/nexcontrol-android-verified.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle 9.6.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.1"
+
+      - name: Download NexControl Android source
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 5 --retry-delay 2             "https://nexcontrol-apk-builder-jdk-production.up.railway.app/NexControl-v1.1.0-Android-Source.tar.xz"             -o NexControl-v1.1.0-Android-Source.tar.xz
+          test -s NexControl-v1.1.0-Android-Source.tar.xz
+          mkdir -p src
+          tar -xJf NexControl-v1.1.0-Android-Source.tar.xz -C src
+          test -f src/android-native/app/src/main/java/com/nexcontrol/mobile/NexControlViewModel.kt
+          test -f src/android-native/app/src/main/java/com/nexcontrol/mobile/TamishraLiveKit.kt
+
+      - name: Apply final Android compile fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path("src/android-native")
+          vm = root / "app/src/main/java/com/nexcontrol/mobile/NexControlViewModel.kt"
+          lk = root / "app/src/main/java/com/nexcontrol/mobile/TamishraLiveKit.kt"
+
+          s = vm.read_text(encoding="utf-8")
+          if "import android.view.View as AndroidView" not in s:
+              s = s.replace(
+                  "package com.nexcontrol.mobile\n",
+                  "package com.nexcontrol.mobile\n\nimport android.view.View as AndroidView\n",
+                  1,
+              )
+          lines = s.splitlines()
+          replaced = False
+          for i, line in enumerate(lines):
+              if "fun webRtcRenderer(" in line:
+                  indent = line[: len(line) - len(line.lstrip())]
+                  lines[i] = (
+                      indent
+                      + "fun webRtcRenderer(context: android.content.Context): AndroidView? = "
+                        "SessionRuntime.renderer(context) as? AndroidView"
+                  )
+                  replaced = True
+          if not replaced:
+              raise SystemExit("webRtcRenderer function not found")
+          vm.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+          s = lk.read_text(encoding="utf-8")
+          s = s.replace(
+              "import io.livekit.android.room.types.DataPublishReliability",
+              "import io.livekit.android.room.track.DataPublishReliability",
+          )
+          s = s.replace("import kotlinx.coroutines.flow.collect\n", "")
+          if "import io.livekit.android.events.collect" not in s:
+              s = s.replace(
+                  "import io.livekit.android.events.RoomEvent\n",
+                  "import io.livekit.android.events.RoomEvent\nimport io.livekit.android.events.collect\n",
+                  1,
+              )
+          lk.write_text(s, encoding="utf-8")
+
+          print("Patched:", vm)
+          print("Patched:", lk)
+          PY
+
+          grep -n "webRtcRenderer" src/android-native/app/src/main/java/com/nexcontrol/mobile/NexControlViewModel.kt
+          grep -nE "events.collect|DataPublishReliability|flow.collect" src/android-native/app/src/main/java/com/nexcontrol/mobile/TamishraLiveKit.kt
+
+      - name: Install Android SDK 37
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager             "platform-tools"             "platforms;android-37"             "build-tools;36.0.0"             "build-tools;37.0.0"
+
+      - name: Configure build memory
+        shell: bash
+        run: |
+          cat > src/android-native/gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8
+          kotlin.daemon.jvmargs=-Xmx1024m
+          org.gradle.workers.max=2
+          org.gradle.parallel=false
+          EOF
+
+      - name: Build debug APK
+        shell: bash
+        working-directory: src/android-native
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --stacktrace --max-workers=2 :app:assembleDebug
+
+      - name: Verify and package APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          in="src/android-native/app/build/outputs/apk/debug/app-debug.apk"
+          out="NexControl-v1.1.0-debug.apk"
+          test -s "$in"
+          cp "$in" "$out"
+
+          unzip -t "$out" >/dev/null
+
+          APKSIGNER="$ANDROID_SDK_ROOT/build-tools/37.0.0/apksigner"
+          if [ ! -x "$APKSIGNER" ]; then
+            APKSIGNER="$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner"
+          fi
+          "$APKSIGNER" verify --verbose "$out"
+
+          sha256sum "$out" > "$out.sha256"
+          ls -lh "$out"
+          cat "$out.sha256"
+
+      - name: Upload verified APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexControl-v1.1.0-Android-Verified
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            NexControl-v1.1.0-debug.apk
+            NexControl-v1.1.0-debug.apk.sha256
