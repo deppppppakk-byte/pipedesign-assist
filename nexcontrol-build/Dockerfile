@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl openssl xz-utils unzip python3 \
-      wine64 xvfb winbind \
+      wine wine64 xvfb winbind \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /work
