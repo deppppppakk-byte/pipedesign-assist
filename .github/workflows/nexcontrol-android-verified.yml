@@ -127,25 +127,32 @@ jobs:
             ln -s "$ANDROID_SDK_ROOT/platforms/android-37.0" "$ANDROID_SDK_ROOT/platforms/android-37"
           fi
 
-      - name: Diagnose Gradle plugin configuration
+      - name: Configure AGP 9 Kotlin compatibility and build memory
         shell: bash
         run: |
           set -euo pipefail
-          echo "=== ROOT GRADLE FILES ==="
-          find src/android-native -maxdepth 3 -type f \( -name "build.gradle" -o -name "build.gradle.kts" -o -name "settings.gradle" -o -name "settings.gradle.kts" \) -print
-          echo "=== KOTLIN/PLUGIN REFERENCES ==="
-          grep -RInE "kotlin|org.jetbrains.kotlin|kotlin-android|com.android.application|plugins[[:space:]]*\\{" src/android-native \
-            --include="*.gradle" --include="*.gradle.kts" --include="settings.gradle" --include="settings.gradle.kts" || true
+          props="src/android-native/gradle.properties"
+          touch "$props"
 
-      - name: Configure build memory
-        shell: bash
-        run: |
-          cat > src/android-native/gradle.properties <<'EOF'
+          # AGP 9 enables built-in Kotlin by default. This project explicitly
+          # applies org.jetbrains.kotlin.android, so opt out of built-in Kotlin.
+          sed -i '/^android\.builtInKotlin=/d' "$props"
+          sed -i '/^org\.gradle\.jvmargs=/d' "$props"
+          sed -i '/^kotlin\.daemon\.jvmargs=/d' "$props"
+          sed -i '/^org\.gradle\.workers\.max=/d' "$props"
+          sed -i '/^org\.gradle\.parallel=/d' "$props"
+
+          cat >> "$props" <<'EOF'
+
+          android.builtInKotlin=false
           org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8
           kotlin.daemon.jvmargs=-Xmx1024m
           org.gradle.workers.max=2
           org.gradle.parallel=false
           EOF
+
+          echo "=== gradle.properties ==="
+          cat "$props"
 
       - name: Build debug APK
         shell: bash
