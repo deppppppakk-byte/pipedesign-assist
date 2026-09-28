@@ -62,6 +62,7 @@ jobs:
                   "package com.nexcontrol.mobile\n\nimport android.view.View as AndroidView\n",
                   1,
               )
+
           lines = s.splitlines()
           replaced = False
           for i, line in enumerate(lines):
@@ -98,15 +99,25 @@ jobs:
           grep -n "webRtcRenderer" src/android-native/app/src/main/java/com/nexcontrol/mobile/NexControlViewModel.kt
           grep -nE "events.collect|DataPublishReliability|flow.collect" src/android-native/app/src/main/java/com/nexcontrol/mobile/TamishraLiveKit.kt
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Install Android SDK 37
         shell: bash
         run: |
           set -euo pipefail
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager \
+
+          export ANDROID_SDK_ROOT="/usr/local/lib/android/sdk"
+          export ANDROID_HOME="$ANDROID_SDK_ROOT"
+
+          SDKMANAGER="$(find "$ANDROID_SDK_ROOT/cmdline-tools" -type f -path "*/bin/sdkmanager" | sort | tail -1)"
+          test -x "$SDKMANAGER"
+          echo "Using sdkmanager: $SDKMANAGER"
+
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
+          echo "$ANDROID_SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" \
             "platform-tools" \
             "platforms;android-37" \
             "build-tools;36.0.0" \
@@ -144,6 +155,7 @@ jobs:
           if [ ! -x "$APKSIGNER" ]; then
             APKSIGNER="$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner"
           fi
+          test -x "$APKSIGNER"
           "$APKSIGNER" verify --verbose "$out"
 
           sha256sum "$out" > "$out.sha256"
