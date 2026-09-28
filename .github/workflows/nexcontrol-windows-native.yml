@@ -6,7 +6,6 @@ on:
       - temp/nexcontrol-v11-railway-build
     paths:
       - ".github/workflows/nexcontrol-windows-native.yml"
-      - "nexcontrol-build/**"
   workflow_dispatch:
 
 permissions:
@@ -16,68 +15,38 @@ jobs:
   windows-host:
     runs-on: windows-latest
     timeout-minutes: 45
-    env:
-      BUILD_KEY: ${{ secrets.BUILD_KEY }}
 
     steps:
-      - name: Checkout protected build branch
+      - name: Checkout build branch
         uses: actions/checkout@v4
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: "pip"
 
-      - name: Reconstruct NexControl source
+      - name: Download verified NexControl source export
         shell: pwsh
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:BUILD_KEY)) {
-            throw "Repository secret BUILD_KEY is missing."
+          $base = "https://nexcontrol-v1-1-android-build-production.up.railway.app"
+          $archive = Join-Path $env:RUNNER_TEMP "NexControl-v1.1.0-windows-source.tar.gz"
+          $checksum = "$archive.sha256"
+
+          Invoke-WebRequest -UseBasicParsing "$base/NexControl-v1.1.0-windows-source.tar.gz" -OutFile $archive
+          Invoke-WebRequest -UseBasicParsing "$base/NexControl-v1.1.0-windows-source.tar.gz.sha256" -OutFile $checksum
+
+          if (-not (Test-Path $archive) -or (Get-Item $archive).Length -lt 1024) {
+            throw "NexControl source export download failed."
           }
 
-          $dir = Join-Path $PWD "nexcontrol-build"
-          $parts = @(
-            "windows-source.part00",
-            "windows-source.part01",
-            "windows-source.part02a",
-            "windows-source.part02b",
-            "windows-source.part03a",
-            "windows-source.part03b",
-            "windows-source.part03c",
-            "windows-source.part03d"
-          )
-
-          $payload = ""
-          foreach ($p in $parts) {
-            $payload += (Get-Content -Raw (Join-Path $dir $p)).Trim()
-          }
-
-          $hex = ""
-          foreach ($p in @("windows-source.part04h0","windows-source.part04h1","windows-source.part04h2","windows-source.part04h3")) {
-            $hex += (Get-Content -Raw (Join-Path $dir $p)).Trim()
-          }
-
-          $ascii = -join (0..(($hex.Length / 2) - 1) | ForEach-Object {
-            [char][Convert]::ToByte($hex.Substring($_ * 2, 2), 16)
-          })
-          $payload += $ascii
-
-          $encPath = Join-Path $env:RUNNER_TEMP "nexcontrol-payload.enc"
-          $xzPath  = Join-Path $env:RUNNER_TEMP "nexcontrol-payload.tar.xz"
-          [IO.File]::WriteAllBytes($encPath, [Convert]::FromBase64String($payload))
-
-          & openssl enc -d -aes-256-cbc -pbkdf2 -pass env:BUILD_KEY -in $encPath -out $xzPath
-          if ($LASTEXITCODE -ne 0) { throw "OpenSSL source reconstruction failed." }
-
-          $expected = "5fbf620605e7fb2b340851c833e02f2630b43f4dbf6faf3df249efdd1a1cf425"
-          $actual = (Get-FileHash $xzPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected = ((Get-Content -Raw $checksum).Trim() -split "\s+")[0].ToLowerInvariant()
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($actual -ne $expected) {
-            throw "Protected NexControl source checksum mismatch."
+            throw "NexControl source export checksum mismatch."
           }
 
           New-Item -ItemType Directory -Force -Path src | Out-Null
-          tar -xJf $xzPath -C src
+          tar -xzf $archive -C src
           if ($LASTEXITCODE -ne 0) { throw "Source extraction failed." }
 
           @(
