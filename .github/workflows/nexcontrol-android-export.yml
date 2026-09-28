@@ -1,0 +1,37 @@
+name: NexControl Android Export
+
+on:
+  push:
+    branches:
+      - nexcontrol/windows-native-workflow
+    paths:
+      - ".github/workflows/nexcontrol-android-export.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download NexControl APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://nexcontrol-apk-final-production.up.railway.app"
+          curl -fL --retry 3 "$base/NexControl-v1.1.0-debug.apk" -o NexControl-v1.1.0-debug.apk
+          curl -fL --retry 3 "$base/NexControl-v1.1.0-debug.apk.sha256" -o NexControl-v1.1.0-debug.apk.sha256
+          test -s NexControl-v1.1.0-debug.apk
+          sha256sum -c NexControl-v1.1.0-debug.apk.sha256
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexControl-v1.1.0-Android
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            NexControl-v1.1.0-debug.apk
+            NexControl-v1.1.0-debug.apk.sha256
