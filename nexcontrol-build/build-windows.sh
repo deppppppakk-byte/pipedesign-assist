@@ -22,6 +22,10 @@ fi
 echo "Using Wine: $WINE_BIN"
 xvfb-run -a "$WINE_BIN" wineboot -u || true
 
+echo "Installing Microsoft VC/UCRT runtime into Wine prefix..."
+xvfb-run -a winetricks -q win10
+xvfb-run -a winetricks -q vcrun2019
+
 curl -fL --retry 4 https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip -o /tmp/python-embed.zip
 mkdir -p "$WINEPREFIX/drive_c/Python311"
 unzip -q /tmp/python-embed.zip -d "$WINEPREFIX/drive_c/Python311"
