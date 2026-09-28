@@ -127,6 +127,16 @@ jobs:
             ln -s "$ANDROID_SDK_ROOT/platforms/android-37.0" "$ANDROID_SDK_ROOT/platforms/android-37"
           fi
 
+      - name: Diagnose Gradle plugin configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== ROOT GRADLE FILES ==="
+          find src/android-native -maxdepth 3 -type f \( -name "build.gradle" -o -name "build.gradle.kts" -o -name "settings.gradle" -o -name "settings.gradle.kts" \) -print
+          echo "=== KOTLIN/PLUGIN REFERENCES ==="
+          grep -RInE "kotlin|org.jetbrains.kotlin|kotlin-android|com.android.application|plugins[[:space:]]*\\{" src/android-native \
+            --include="*.gradle" --include="*.gradle.kts" --include="settings.gradle" --include="settings.gradle.kts" || true
+
       - name: Configure build memory
         shell: bash
         run: |
