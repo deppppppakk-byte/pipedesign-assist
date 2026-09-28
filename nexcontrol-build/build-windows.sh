@@ -33,7 +33,7 @@ xvfb-run -a "$WINE_BIN" "$PYEXE" 'C:\Python311\get-pip.py'
 xvfb-run -a "$WINE_BIN" "$PYEXE" -m pip install --upgrade pip wheel setuptools
 xvfb-run -a "$WINE_BIN" "$PYEXE" -m pip install -r 'Z:\work\src\host\requirements.txt'
 xvfb-run -a "$WINE_BIN" "$PYEXE" -m pip install -r 'Z:\work\src\host\requirements-windows.txt'
-xvfb-run -a "$WINE_BIN" "$PYEXE" -m pip install --only-binary=:all: -r 'Z:\work\src\host\requirements-webrtc.txt'
+xvfb-run -a "$WINE_BIN" "$PYEXE" -m pip install --only-binary=:all: "aiortc==1.15.0" "av>=14,<18" "livekit==1.1.19"
 
 cd /work/src
 xvfb-run -a "$WINE_BIN" "$PYEXE" -m PyInstaller   --noconfirm   --clean   --onefile   --windowed   --name NexControlHost   --add-data 'mobile;mobile'   --collect-all aiortc   --collect-all av   --collect-all livekit   host/tray_host.py
