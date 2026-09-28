@@ -35,7 +35,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl -fL --retry 5 --retry-delay 2             "https://nexcontrol-apk-builder-jdk-production.up.railway.app/NexControl-v1.1.0-Android-Source.tar.xz"             -o NexControl-v1.1.0-Android-Source.tar.xz
+          curl -fL --retry 5 --retry-delay 2 \
+            "https://nexcontrol-apk-builder-jdk-production.up.railway.app/NexControl-v1.1.0-Android-Source.tar.xz" \
+            -o NexControl-v1.1.0-Android-Source.tar.xz
           test -s NexControl-v1.1.0-Android-Source.tar.xz
           mkdir -p src
           tar -xJf NexControl-v1.1.0-Android-Source.tar.xz -C src
@@ -96,12 +98,19 @@ jobs:
           grep -n "webRtcRenderer" src/android-native/app/src/main/java/com/nexcontrol/mobile/NexControlViewModel.kt
           grep -nE "events.collect|DataPublishReliability|flow.collect" src/android-native/app/src/main/java/com/nexcontrol/mobile/TamishraLiveKit.kt
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Install Android SDK 37
         shell: bash
         run: |
           set -euo pipefail
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager             "platform-tools"             "platforms;android-37"             "build-tools;36.0.0"             "build-tools;37.0.0"
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-37" \
+            "build-tools;36.0.0" \
+            "build-tools;37.0.0"
 
       - name: Configure build memory
         shell: bash
