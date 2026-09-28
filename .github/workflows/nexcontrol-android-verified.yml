@@ -137,6 +137,7 @@ jobs:
           # AGP 9 enables built-in Kotlin by default. This project explicitly
           # applies org.jetbrains.kotlin.android, so opt out of built-in Kotlin.
           sed -i '/^android\.builtInKotlin=/d' "$props"
+          sed -i '/^android\.newDsl=/d' "$props"
           sed -i '/^org\.gradle\.jvmargs=/d' "$props"
           sed -i '/^kotlin\.daemon\.jvmargs=/d' "$props"
           sed -i '/^org\.gradle\.workers\.max=/d' "$props"
@@ -145,6 +146,7 @@ jobs:
           cat >> "$props" <<'EOF'
 
           android.builtInKotlin=false
+          android.newDsl=false
           org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8
           kotlin.daemon.jvmargs=-Xmx1024m
           org.gradle.workers.max=2
