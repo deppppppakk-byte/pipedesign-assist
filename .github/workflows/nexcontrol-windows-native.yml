@@ -123,6 +123,51 @@ jobs:
           }
           Pop-Location
 
+      - name: Installer smoke test
+        shell: pwsh
+        run: |
+          $setup = (Resolve-Path "src/installer/Output/NexControlHost-1.1.0-Setup.exe").Path
+          $log = (Join-Path $env:RUNNER_TEMP "NexControl-install.log")
+          $args = @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/LOG=$log")
+
+          $p = Start-Process -FilePath $setup -ArgumentList $args -Wait -PassThru
+          if (Test-Path $log) {
+            Copy-Item $log "src/installer/NexControl-install-smoke.log" -Force
+            Get-Content $log -Tail 120
+          }
+
+          if ($p.ExitCode -ne 0) {
+            throw "Installer smoke test failed with exit code $($p.ExitCode)"
+          }
+
+          $roots = @(
+            $env:LOCALAPPDATA,
+            $env:ProgramFiles,
+            ${env:ProgramFiles(x86)}
+          ) | Where-Object { $_ -and (Test-Path $_) }
+
+          $installed = $null
+          foreach ($root in $roots) {
+            $installed = Get-ChildItem -Path $root -Filter "NexControlHost.exe" -File -Recurse -ErrorAction SilentlyContinue |
+              Select-Object -First 1
+            if ($installed) { break }
+          }
+
+          if (-not $installed) {
+            throw "Installer returned success but NexControlHost.exe was not found after installation."
+          }
+
+          Write-Host "Installed NexControl host: $($installed.FullName)"
+
+      - name: Upload installer smoke log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexControl-v1.1.0-Installer-Smoke-Log
+          if-no-files-found: ignore
+          retention-days: 14
+          path: src/installer/NexControl-install-smoke.log
+
       - name: Create SHA-256 files
         shell: pwsh
         run: |
