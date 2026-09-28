@@ -22,10 +22,14 @@ fi
 echo "Using Wine: $WINE_BIN"
 xvfb-run -a "$WINE_BIN" wineboot -u || true
 
-curl -fL --retry 4 https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe -o /tmp/python.exe
-xvfb-run -a "$WINE_BIN" /tmp/python.exe /quiet InstallAllUsers=1 TargetDir=C:\Python311 PrependPath=1 Include_test=0 Include_launcher=0 SimpleInstall=1
-xvfb-run -a "$WINE_BIN" "$PYEXE" --version
+curl -fL --retry 4 https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip -o /tmp/python-embed.zip
+mkdir -p "$WINEPREFIX/drive_c/Python311"
+unzip -q /tmp/python-embed.zip -d "$WINEPREFIX/drive_c/Python311"
+sed -i 's/^#import site/import site/' "$WINEPREFIX/drive_c/Python311/python311._pth"
+curl -fL --retry 4 https://bootstrap.pypa.io/get-pip.py -o "$WINEPREFIX/drive_c/Python311/get-pip.py"
 
+xvfb-run -a "$WINE_BIN" "$PYEXE" --version
+xvfb-run -a "$WINE_BIN" "$PYEXE" 'C:\Python311\get-pip.py'
 xvfb-run -a "$WINE_BIN" "$PYEXE" -m pip install --upgrade pip wheel setuptools
 xvfb-run -a "$WINE_BIN" "$PYEXE" -m pip install -r 'Z:\work\src\host\requirements.txt'
 xvfb-run -a "$WINE_BIN" "$PYEXE" -m pip install -r 'Z:\work\src\host\requirements-windows.txt'
