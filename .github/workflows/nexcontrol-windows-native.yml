@@ -140,24 +140,19 @@ jobs:
             throw "Installer smoke test failed with exit code $($p.ExitCode)"
           }
 
-          $roots = @(
-            $env:LOCALAPPDATA,
-            $env:ProgramFiles,
-            ${env:ProgramFiles(x86)}
-          ) | Where-Object { $_ -and (Test-Path $_) }
+          $destLine = Select-String -Path $log -Pattern 'Dest filename: .*NexControlHost\.exe' |
+            Select-Object -Last 1
 
-          $installed = $null
-          foreach ($root in $roots) {
-            $installed = Get-ChildItem -Path $root -Filter "NexControlHost.exe" -File -Recurse -ErrorAction SilentlyContinue |
-              Select-Object -First 1
-            if ($installed) { break }
+          if (-not $destLine) {
+            throw "Installer returned success but its log contains no NexControlHost.exe destination."
           }
 
-          if (-not $installed) {
-            throw "Installer returned success but NexControlHost.exe was not found after installation."
+          $installedPath = ($destLine.Line -replace '^.*Dest filename:\s*', '').Trim()
+          if (-not (Test-Path $installedPath)) {
+            throw "Installer log reports NexControlHost.exe at '$installedPath', but the file does not exist."
           }
 
-          Write-Host "Installed NexControl host: $($installed.FullName)"
+          Write-Host "Installed NexControl host: $installedPath"
 
       - name: Upload installer smoke log
         if: always()
