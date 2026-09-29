@@ -94,6 +94,11 @@ function sha256(value: string): string {
   return crypto.createHash("sha256").update(value, "utf8").digest("hex");
 }
 
+function routeParam(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value[0] ?? "";
+  return String(value ?? "");
+}
+
 function bearerToken(header: string | undefined): string | null {
   if (!header) return null;
   const match = /^Bearer\s+(.+)$/i.exec(header.trim());
@@ -560,7 +565,7 @@ app.post(
          AND status = 'ACTIVE'
          AND expires_at > now()
        RETURNING expires_at`,
-      [req.params.sessionId, auth.userId],
+      [routeParam(req.params.sessionId), auth.userId],
     );
     if (result.rowCount !== 1) {
       res.status(404).json({ error: "Active session not found." });
@@ -574,7 +579,7 @@ app.put(
   "/v1/projects/:projectId/presence",
   asyncRoute(async (req, res) => {
     const auth = req.auth!;
-    const projectId = req.params.projectId;
+    const projectId = routeParam(req.params.projectId);
     if (!(await requirePermission(res, projectId, auth.userId, "project.view"))) return;
 
     const sessionId = String(req.body?.sessionId ?? "");
@@ -614,7 +619,7 @@ app.post(
   "/v1/projects/:projectId/leases/acquire",
   asyncRoute(async (req, res) => {
     const auth = req.auth!;
-    const projectId = req.params.projectId;
+    const projectId = routeParam(req.params.projectId);
     const objectType = String(req.body?.objectType ?? "").trim();
     const objectId = String(req.body?.objectId ?? "").trim();
     const sessionId = String(req.body?.sessionId ?? "").trim();
@@ -709,7 +714,7 @@ app.post(
   "/v1/projects/:projectId/leases/:leaseId/renew",
   asyncRoute(async (req, res) => {
     const auth = req.auth!;
-    const projectId = req.params.projectId;
+    const projectId = routeParam(req.params.projectId);
     const leaseToken = String(req.body?.leaseToken ?? "");
     const seconds = Math.max(30, Math.min(Number(req.body?.expiresInSeconds ?? 120), 600));
     const result = await pool.query(
@@ -719,7 +724,7 @@ app.post(
        WHERE id = $2::uuid AND project_id = $3::uuid AND user_id = $4::uuid
          AND lease_token::text = $5 AND status = 'ACTIVE' AND expires_at > now()
        RETURNING id::text, lease_token::text, lease_version, expires_at`,
-      [seconds, req.params.leaseId, projectId, auth.userId, leaseToken],
+      [seconds, routeParam(req.params.leaseId), projectId, auth.userId, leaseToken],
     );
     if (result.rowCount !== 1) {
       res.status(409).json({ error: "Active lease not found or token mismatch." });
@@ -739,7 +744,7 @@ app.post(
        WHERE id = $1::uuid AND project_id = $2::uuid AND user_id = $3::uuid
          AND lease_token::text = $4 AND status = 'ACTIVE'
        RETURNING id::text`,
-      [req.params.leaseId, req.params.projectId, auth.userId, String(req.body?.leaseToken ?? "")],
+      [routeParam(req.params.leaseId), req.params.projectId, auth.userId, String(req.body?.leaseToken ?? "")],
     );
     if (result.rowCount !== 1) {
       res.status(409).json({ error: "Active lease not found or token mismatch." });
@@ -762,7 +767,7 @@ app.post(
   "/v1/projects/:projectId/transactions",
   asyncRoute(async (req, res) => {
     const auth = req.auth!;
-    const projectId = req.params.projectId;
+    const projectId = routeParam(req.params.projectId);
     const clientTransactionId = String(req.body?.clientTransactionId ?? "").trim();
     const objectType = String(req.body?.objectType ?? "").trim();
     const objectId = String(req.body?.objectId ?? "").trim();
@@ -981,7 +986,7 @@ app.get(
   "/v1/projects/:projectId/events",
   asyncRoute(async (req, res) => {
     const auth = req.auth!;
-    const projectId = req.params.projectId;
+    const projectId = routeParam(req.params.projectId);
     if (!(await requirePermission(res, projectId, auth.userId, "project.view"))) return;
 
     const after = Math.max(0, Number.parseInt(String(req.query.after ?? "0"), 10) || 0);
@@ -1023,7 +1028,7 @@ app.put(
   "/v1/projects/:projectId/blobs/:blobId",
   asyncRoute(async (req, res) => {
     const auth = req.auth!;
-    const projectId = req.params.projectId;
+    const projectId = routeParam(req.params.projectId);
     if (!(await requirePermission(res, projectId, auth.userId, "object.edit"))) return;
 
     const objectKey = String(req.body?.objectKey ?? "").trim();
@@ -1051,7 +1056,7 @@ app.put(
        RETURNING blob_id::text AS "blobId", object_key AS "objectKey", sha256,
                  size_bytes AS "sizeBytes", storage_url AS "storageUrl", updated_at AS "updatedAt"`,
       [
-        req.params.blobId,
+        routeParam(req.params.blobId),
         projectId,
         String(req.body?.objectType ?? "") || null,
         String(req.body?.objectId ?? "") || null,
@@ -1071,7 +1076,7 @@ app.get(
   "/v1/projects/:projectId/state",
   asyncRoute(async (req, res) => {
     const auth = req.auth!;
-    const projectId = req.params.projectId;
+    const projectId = routeParam(req.params.projectId);
     if (!(await requirePermission(res, projectId, auth.userId, "project.view"))) return;
 
     const [presence, leases] = await Promise.all([
@@ -1117,7 +1122,7 @@ app.get(
   "/v1/projects/:projectId/admin/snapshot",
   asyncRoute(async (req, res) => {
     const auth = req.auth!;
-    const projectId = req.params.projectId;
+    const projectId = routeParam(req.params.projectId);
     if (!(await requirePermission(res, projectId, auth.userId, "project.manage_members"))) return;
 
     const [members, sessions, leases, presence] = await Promise.all([
@@ -1182,7 +1187,7 @@ app.put(
   "/v1/projects/:projectId/members/:userId/role",
   asyncRoute(async (req, res) => {
     const auth = req.auth!;
-    const projectId = req.params.projectId;
+    const projectId = routeParam(req.params.projectId);
     if (!(await requirePermission(res, projectId, auth.userId, "project.manage_members"))) return;
 
     const roleId = String(req.body?.roleId ?? "").trim();
@@ -1193,7 +1198,7 @@ app.put(
        WHERE pm.project_id = $2::uuid AND pm.user_id = $3::uuid
          AND r.id = $1
        RETURNING pm.user_id::text AS "userId", pm.role_id AS "roleId"`,
-      [roleId, projectId, req.params.userId],
+      [roleId, projectId, routeParam(req.params.userId)],
     );
     if (result.rowCount !== 1) {
       res.status(404).json({ error: "Project member or role not found." });
@@ -1207,7 +1212,7 @@ app.post(
   "/v1/projects/:projectId/leases/:leaseId/force-release",
   asyncRoute(async (req, res) => {
     const auth = req.auth!;
-    const projectId = req.params.projectId;
+    const projectId = routeParam(req.params.projectId);
     if (!(await requirePermission(res, projectId, auth.userId, "lock.force_release"))) return;
 
     const result = await pool.query(
@@ -1215,7 +1220,7 @@ app.post(
        SET status = 'FORCED', heartbeat_at = now()
        WHERE id = $1::uuid AND project_id = $2::uuid AND status = 'ACTIVE'
        RETURNING id::text AS "leaseId"`,
-      [req.params.leaseId, projectId],
+      [routeParam(req.params.leaseId), projectId],
     );
     if (result.rowCount !== 1) {
       res.status(404).json({ error: "Active lease not found." });
