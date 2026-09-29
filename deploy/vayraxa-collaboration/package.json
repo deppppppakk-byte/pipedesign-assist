@@ -21,14 +21,14 @@
     "express": "^5.1.0",
     "helmet": "^8.1.0",
     "pg": "^8.16.3",
-    "ws": "^8.18.3"
+    "ws": "^8.18.3",
+    "typescript": "^5.9.2",
+    "@types/node": "^24.5.2",
+    "@types/express": "^5.0.3",
+    "@types/pg": "^8.15.5",
+    "@types/ws": "^8.18.1"
   },
   "devDependencies": {
-    "@types/express": "^5.0.3",
-    "@types/node": "^24.5.2",
-    "@types/pg": "^8.15.5",
-    "@types/ws": "^8.18.1",
-    "tsx": "^4.20.5",
-    "typescript": "^5.9.2"
+    "tsx": "^4.20.5"
   }
 }
