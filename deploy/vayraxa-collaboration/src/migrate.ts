@@ -1,1 +1,62 @@
-import fs from "node:fs/promises";\nimport path from "node:path";\nimport process from "node:process";\nimport pg from "pg";\n\nconst { Pool } = pg;\n\nconst databaseUrl = process.env.VAYRAXA_DATABASE_URL?.trim();\nconst databaseSsl = process.env.VAYRAXA_DATABASE_SSL !== "0";\n\nif (!databaseUrl) {\n  throw new Error("VAYRAXA_DATABASE_URL is required.");\n}\n\nconst pool = new Pool({\n  connectionString: databaseUrl,\n  ssl: databaseSsl\n    ? { rejectUnauthorized: process.env.VAYRAXA_DATABASE_SSL_VERIFY !== "0" }\n    : false,\n  max: 2,\n});\n\nconst migrationDir = path.resolve(process.cwd(), "schema");\nconst files = (await fs.readdir(migrationDir))\n  .filter((name) => /^\d+.*\.sql$/i.test(name))\n  .sort((a, b) => a.localeCompare(b));\n\nif (files.length === 0) {\n  throw new Error("No collaboration SQL migrations found.");\n}\n\nconst client = await pool.connect();\ntry {\n  await client.query(\n    "CREATE TABLE IF NOT EXISTS collaboration_schema_migrations (" +\n      "migration_name TEXT PRIMARY KEY," +\n      "applied_at TIMESTAMPTZ NOT NULL DEFAULT now()" +\n      ")"\n  );\n\n  for (const file of files) {\n    const alreadyApplied = await client.query(\n      "SELECT 1 FROM collaboration_schema_migrations WHERE migration_name = $1",\n      [file],\n    );\n    if (alreadyApplied.rowCount === 1) {\n      console.log(`Skipping already-applied migration: ${file}`);\n      continue;\n    }\n\n    const sql = await fs.readFile(path.join(migrationDir, file), "utf8");\n    await client.query(sql);\n    await client.query(\n      "INSERT INTO collaboration_schema_migrations (migration_name) VALUES ($1)",\n      [file],\n    );\n    console.log(`Applied migration: ${file}`);\n  }\n} finally {\n  client.release();\n  await pool.end();\n}\n
+import fs from "node:fs/promises";
+import path from "node:path";
+import process from "node:process";
+import pg from "pg";
+
+const { Pool } = pg;
+
+const databaseUrl = process.env.VAYRAXA_DATABASE_URL?.trim();
+const databaseSsl = process.env.VAYRAXA_DATABASE_SSL !== "0";
+
+if (!databaseUrl) {
+  throw new Error("VAYRAXA_DATABASE_URL is required.");
+}
+
+const pool = new Pool({
+  connectionString: databaseUrl,
+  ssl: databaseSsl
+    ? { rejectUnauthorized: process.env.VAYRAXA_DATABASE_SSL_VERIFY !== "0" }
+    : false,
+  max: 2,
+});
+
+const migrationDir = path.resolve(process.cwd(), "schema");
+const files = (await fs.readdir(migrationDir))
+  .filter((name) => /^\d+.*\.sql$/i.test(name))
+  .sort((a, b) => a.localeCompare(b));
+
+if (files.length === 0) {
+  throw new Error("No collaboration SQL migrations found.");
+}
+
+const client = await pool.connect();
+try {
+  await client.query(
+    "CREATE TABLE IF NOT EXISTS collaboration_schema_migrations (" +
+      "migration_name TEXT PRIMARY KEY," +
+      "applied_at TIMESTAMPTZ NOT NULL DEFAULT now()" +
+      ")"
+  );
+
+  for (const file of files) {
+    const alreadyApplied = await client.query(
+      "SELECT 1 FROM collaboration_schema_migrations WHERE migration_name = $1",
+      [file],
+    );
+    if (alreadyApplied.rowCount === 1) {
+      console.log(`Skipping already-applied migration: ${file}`);
+      continue;
+    }
+
+    const sql = await fs.readFile(path.join(migrationDir, file), "utf8");
+    await client.query(sql);
+    await client.query(
+      "INSERT INTO collaboration_schema_migrations (migration_name) VALUES ($1)",
+      [file],
+    );
+    console.log(`Applied migration: ${file}`);
+  }
+} finally {
+  client.release();
+  await pool.end();
+}
