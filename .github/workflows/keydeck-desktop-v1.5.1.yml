@@ -1,0 +1,86 @@
+name: KeyDeck Desktop Receiver v1.5.1
+
+on:
+  push:
+    branches:
+      - keydeck-v1-build
+    paths:
+      - '.keydeck-desktop-v151-ready'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reassemble and verify source
+        shell: bash
+        run: |
+          cat keydeck-ci/v1.5.1/chunk_*.b64 > /tmp/keydeck151.b64
+          test "$(wc -c < /tmp/keydeck151.b64)" -eq 26404
+          base64 -d /tmp/keydeck151.b64 > /tmp/KeyDeck-Desktop-Receiver-v1.5.1-Source.zip
+          echo "f850aaec0b13fb7165aef754ab345caa1a407fe116badb2374d21681e5a6d869  /tmp/KeyDeck-Desktop-Receiver-v1.5.1-Source.zip" | sha256sum -c -
+          rm -rf /tmp/keydeck151
+          mkdir -p /tmp/keydeck151
+          unzip -q /tmp/KeyDeck-Desktop-Receiver-v1.5.1-Source.zip -d /tmp/keydeck151
+          test -f /tmp/keydeck151/receiver/native_ui_windows.go
+          grep -F 'const appVersion = "1.5.1"' /tmp/keydeck151/receiver/native_ui_windows.go
+          grep -F 'statCard' /tmp/keydeck151/receiver/native_ui_windows.go
+          grep -F 'togglePill' /tmp/keydeck151/receiver/native_ui_windows.go
+          grep -F '1180, 760' /tmp/keydeck151/receiver/native_ui_windows.go
+          grep -F 'DwmSetWindowAttribute' /tmp/keydeck151/receiver/native_ui_windows.go
+          grep -F 'Home' /tmp/keydeck151/receiver/native_ui_windows.go
+          grep -F 'Devices' /tmp/keydeck151/receiver/native_ui_windows.go
+          grep -F 'Diagnostics' /tmp/keydeck151/receiver/native_ui_windows.go
+          grep -F 'Settings' /tmp/keydeck151/receiver/native_ui_windows.go
+
+      - name: Set up Go 1.23
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+
+      - name: Test receiver protocol
+        working-directory: /tmp/keydeck151/receiver
+        shell: bash
+        run: |
+          go mod tidy
+          go mod verify
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -v ./...
+
+      - name: Build native Windows GUI
+        working-directory: /tmp/keydeck151/receiver
+        shell: bash
+        run: |
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-H windowsgui -s -w" -o /tmp/KeyDeckDesktopReceiver-v1.5.1.exe .
+          test -s /tmp/KeyDeckDesktopReceiver-v1.5.1.exe
+          file /tmp/KeyDeckDesktopReceiver-v1.5.1.exe | grep -E 'PE32\+.*GUI.*x86-64'
+          sha256sum /tmp/KeyDeckDesktopReceiver-v1.5.1.exe > /tmp/KeyDeckDesktopReceiver-v1.5.1.exe.sha256
+
+      - name: Package professional receiver
+        shell: bash
+        run: |
+          mkdir -p /tmp/KeyDeck-Desktop-Receiver-v1.5.1
+          cp /tmp/KeyDeckDesktopReceiver-v1.5.1.exe /tmp/KeyDeck-Desktop-Receiver-v1.5.1/
+          cp /tmp/keydeck151/receiver/README.txt /tmp/KeyDeck-Desktop-Receiver-v1.5.1/
+          cp /tmp/keydeck151/receiver/Allow-KeyDeck-Firewall.ps1 /tmp/KeyDeck-Desktop-Receiver-v1.5.1/
+          cp /tmp/KeyDeckDesktopReceiver-v1.5.1.exe.sha256 /tmp/KeyDeck-Desktop-Receiver-v1.5.1/
+          cd /tmp
+          zip -qr KeyDeck-Desktop-Receiver-v1.5.1-Windows.zip KeyDeck-Desktop-Receiver-v1.5.1
+          sha256sum KeyDeck-Desktop-Receiver-v1.5.1-Windows.zip > KeyDeck-Desktop-Receiver-v1.5.1-Windows.zip.sha256
+
+      - name: Upload receiver artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KeyDeck-Desktop-Receiver-v1.5.1-Windows
+          if-no-files-found: error
+          path: |
+            /tmp/KeyDeckDesktopReceiver-v1.5.1.exe
+            /tmp/KeyDeckDesktopReceiver-v1.5.1.exe.sha256
+            /tmp/KeyDeck-Desktop-Receiver-v1.5.1-Windows.zip
+            /tmp/KeyDeck-Desktop-Receiver-v1.5.1-Windows.zip.sha256
