@@ -1,0 +1,7 @@
+KeyDeck Desktop Receiver v1.5.1 professional UI build
+source_sha256=f850aaec0b13fb7165aef754ab345caa1a407fe116badb2374d21681e5a6d869
+ui=1180x760 graphite desktop shell
+pages=Home,Devices,Diagnostics,Settings
+native_dark_titlebar=true
+tray=true
+startup=true
