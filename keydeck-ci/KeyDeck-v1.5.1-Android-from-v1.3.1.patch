@@ -1,0 +1,277 @@
+--- a/android/app/build.gradle
++++ b/android/app/build.gradle
+@@ -8,8 +8,8 @@
+         applicationId 'in.tamishra.keydeck'
+         minSdk 23
+         targetSdk 35
+-        versionCode 10301
+-        versionName '1.3.1'
++        versionCode 10501
++        versionName '1.5.1'
+     }
+ 
+     buildTypes {
+--- a/android/app/src/main/java/in/tamishra/keydeck/ConnectionManager.java
++++ b/android/app/src/main/java/in/tamishra/keydeck/ConnectionManager.java
+@@ -41,7 +41,7 @@
+         void onError(String message);
+     }
+ 
+-    public static final int PROTOCOL = 5;
++    public static final int PROTOCOL = 6;
+     public static final int UDP_PORT = 8764;
+     public static final int TCP_PORT = 8765;
+ 
+@@ -69,6 +69,8 @@
+     private volatile boolean qrDirectFallbackPending;
+     private volatile boolean autoConnectAfterDiscovery;
+     private volatile boolean forcePairOnce;
++    private volatile String pendingPairToken = "";
++    private volatile String expectedInstance = "";
+     private volatile long connectionGeneration;
+ 
+     public ConnectionManager(Context context, Listener listener) {
+@@ -87,6 +89,8 @@
+     public int currentPort() { return foundPort; }
+     public void setPairCode(String code) {
+         pendingPairCode = code == null ? "" : code.trim();
++        pendingPairToken = "";
++        expectedInstance = "";
+         forcePairOnce = pendingPairCode.matches("\\d{6}");
+     }
+ 
+@@ -178,18 +182,35 @@
+                 }
+ 
+                 byte[] buf = new byte[2048];
+-                DatagramPacket response = new DatagramPacket(buf, buf.length);
+-                ds.receive(response);
+-                JSONObject offer = new JSONObject(new String(response.getData(), 0, response.getLength(), StandardCharsets.UTF_8));
+-                if (offer.optInt("proto", -1) != PROTOCOL) {
+-                    throw new IllegalStateException("Receiver protocol mismatch. Use KeyDeck Receiver.");
++                long deadline = System.currentTimeMillis() + 3500;
++                JSONObject offer = null;
++                DatagramPacket response = null;
++                while (System.currentTimeMillis() < deadline) {
++                    DatagramPacket candidate = new DatagramPacket(buf, buf.length);
++                    try {
++                        ds.receive(candidate);
++                    } catch (java.net.SocketTimeoutException timeout) {
++                        break;
++                    }
++                    JSONObject candidateOffer = new JSONObject(new String(candidate.getData(), 0, candidate.getLength(), StandardCharsets.UTF_8));
++                    if (candidateOffer.optInt("proto", -1) != PROTOCOL) continue;
++                    String instance = candidateOffer.optString("instance", "");
++                    if (!expectedInstance.isEmpty() && !expectedInstance.equals(instance)) continue;
++                    offer = candidateOffer;
++                    response = candidate;
++                    break;
++                }
++                if (offer == null || response == null) {
++                    throw new IllegalStateException(expectedInstance.isEmpty()
++                            ? "KeyDeck Desktop Receiver v1.5.1 was not found on this LAN."
++                            : "The receiver from this QR was not found on this LAN.");
+                 }
+                 foundHost = response.getAddress().getHostAddress();
+                 foundName = offer.optString("name", "Windows PC");
+                 foundPort = offer.optInt("tcp", TCP_PORT);
+                 rememberHost(foundHost, foundName, foundPort);
+                 listener.onDiscovered(foundName, foundHost, foundPort);
+-                if (autoConnectAfterDiscovery && pendingPairCode.length() == 6) {
++                if (autoConnectAfterDiscovery && (pendingPairToken.length() >= 20 || pendingPairCode.length() == 6)) {
+                     autoConnectAfterDiscovery = false;
+                     connect();
+                 }
+@@ -204,17 +225,26 @@
+         });
+     }
+ 
+-    public void connectFromQr(String host, int port, String pairCode, String name) {
++    public void connectFromQr(String host, int port, String pairCode, String name, String token, String instance) {
++        pendingPairCode = pairCode == null ? "" : pairCode.trim();
++        pendingPairToken = token == null ? "" : token.trim();
++        expectedInstance = instance == null ? "" : instance.trim();
++        if (pendingPairToken.length() < 20 || expectedInstance.isEmpty()) {
++            listener.onError("This QR is incomplete or from an older receiver. Use KeyDeck Desktop Receiver v1.5.1.");
++            return;
++        }
++        forcePairOnce = true;
+         if (host == null || host.trim().isEmpty()) {
+-            listener.onError("The receiver QR does not contain a valid PC address.");
++            qrDirectFallbackPending = false;
++            autoConnectAfterDiscovery = true;
++            listener.onState("discovering", "Finding the exact receiver from this QR…");
++            discover();
+             return;
+         }
+         foundHost = host.trim();
+         foundPort = port > 0 ? port : TCP_PORT;
+         foundName = (name == null || name.trim().isEmpty()) ? "Windows PC" : name.trim();
+-        pendingPairCode = pairCode == null ? "" : pairCode.trim();
+-        forcePairOnce = pendingPairCode.matches("\\d{6}");
+-        if (forcePairOnce) forgetTrustFor(foundHost);
++        forgetTrustFor(foundHost);
+         qrDirectFallbackPending = true;
+         autoConnectAfterDiscovery = false;
+         rememberHost(foundHost, foundName, foundPort);
+@@ -232,6 +262,8 @@
+             return;
+         }
+         pendingPairCode = code;
++        pendingPairToken = "";
++        expectedInstance = "";
+         forcePairOnce = true;
+         forgetTrustFor(foundHost);
+         qrDirectFallbackPending = false;
+@@ -247,6 +279,8 @@
+             rememberHost(foundHost, foundName, foundPort);
+         }
+         pendingPairCode = pairCode == null ? "" : pairCode.trim();
++        pendingPairToken = "";
++        expectedInstance = "";
+         forcePairOnce = pendingPairCode.matches("\\d{6}");
+         if (forcePairOnce && foundHost != null) forgetTrustFor(foundHost);
+         qrDirectFallbackPending = false;
+@@ -292,7 +326,10 @@
+             hello.put("proto", PROTOCOL);
+             hello.put("device", Build.MANUFACTURER + " " + Build.MODEL);
+             hello.put("id", id);
+-            if (forcePairOnce && pendingPairCode.matches("\\d{6}")) {
++            if (!expectedInstance.isEmpty()) hello.put("instance", expectedInstance);
++            if (forcePairOnce && pendingPairToken.length() >= 20) {
++                hello.put("token", pendingPairToken);
++            } else if (forcePairOnce && pendingPairCode.matches("\\d{6}")) {
+                 hello.put("code", pendingPairCode);
+             }
+             writeNow(hello);
+@@ -308,7 +345,11 @@
+                 rememberHost(host, foundName, port);
+                 JSONObject readyMsg = readJson(r);
+                 if (!"ready".equals(readyMsg.optString("t"))) throw new IllegalStateException("Receiver did not enter ready state.");
++                String pairedInstance = first.optString("instance", expectedInstance);
++                if (!expectedInstance.isEmpty() && !expectedInstance.equals(pairedInstance)) throw new IllegalStateException("Receiver identity changed during pairing.");
+                 pendingPairCode = "";
++                pendingPairToken = "";
++                expectedInstance = "";
+                 forcePairOnce = false;
+             } else if ("challenge".equals(type)) {
+                 String secret = prefs.getString(secretKey(host), "");
+@@ -365,14 +406,23 @@
+                 JSONObject readyMsg = readJson(r);
+                 if (!"ready".equals(readyMsg.optString("t"))) throw new IllegalStateException("Receiver did not enter ready state.");
+                 pendingPairCode = "";
++                pendingPairToken = "";
++                expectedInstance = "";
+                 forcePairOnce = false;
+             } else if ("error".equals(type)) {
+                 String code = first.optString("code", "Receiver error");
+-                if ("protocol_mismatch".equals(code)) throw new IllegalStateException("Receiver version mismatch. Use KeyDeck Receiver v1.2.2.");
++                if ("protocol_mismatch".equals(code)) throw new IllegalStateException("Receiver version mismatch. Use KeyDeck Desktop Receiver v1.5.1.");
++                if ("bad_pair_token".equals(code)) {
++                    pendingPairToken = "";
++                    throw new IllegalStateException("The QR pairing session expired. Scan the current QR again.");
++                }
++                if ("receiver_mismatch".equals(code)) {
++                    throw new IllegalStateException("This is a different KeyDeck Receiver than the one you scanned. Close old receivers and scan again.");
++                }
+                 if ("bad_pair_code".equals(code)) {
+                     pendingPairCode = "";
+                     forcePairOnce = true;
+-                    throw new IllegalStateException("PC " + host + " rejected the code. Confirm the receiver IP/name and use its current six-digit code.");
++                    throw new IllegalStateException("The six-digit code is not current for this receiver. Use its current code or scan QR.");
+                 }
+                 if ("lan_required".equals(code)) throw new IllegalStateException("PC rejected the network as non-LAN. Keep phone and PC on the same Wi-Fi or hotspot.");
+                 throw new IllegalStateException(code);
+@@ -383,6 +433,8 @@
+             s.setSoTimeout(0);
+             ready = true;
+             forcePairOnce = false;
++            pendingPairToken = "";
++            expectedInstance = "";
+             qrDirectFallbackPending = false;
+             autoConnectAfterDiscovery = false;
+             reconnectAttempt = 0;
+@@ -396,7 +448,7 @@
+             if (generation != connectionGeneration || closed) { closeSocketOnly(); return; }
+             boolean trusted = hasTrustFor(host);
+             boolean qrFallback = !tcpConnected && !userDisconnect && !closed
+-                    && !trusted && qrDirectFallbackPending && pendingPairCode.length() == 6;
++                    && !trusted && qrDirectFallbackPending && (pendingPairToken.length() >= 20 || pendingPairCode.length() == 6);
+             boolean shouldReconnect = !userDisconnect && !closed && trusted;
+             ready = false;
+             closeSocketOnly();
+@@ -407,11 +459,19 @@
+                 discover();
+                 return;
+             }
+-            listener.onError(e.getMessage() == null ? "Connection failed." : e.getMessage());
++            listener.onError(formatConnectionError(e, host, port));
+             if (shouldReconnect) scheduleReconnect();
+         }
+     }
+ 
++    private String formatConnectionError(Exception e, String host, int port) {
++        if (e instanceof java.net.SocketTimeoutException) return "Connection timed out to " + host + ":" + port + ". Check firewall and same Wi-Fi.";
++        if (e instanceof java.net.ConnectException) return "PC refused the connection on port " + port + ". Start only KeyDeck Desktop Receiver v1.5.1 and allow Private-network firewall access.";
++        if (e instanceof java.net.NoRouteToHostException) return "No route to " + host + ". Put phone and PC on the same Wi-Fi or hotspot.";
++        String m = e.getMessage();
++        return (m == null || m.trim().isEmpty()) ? "Connection failed. Open Diagnostics and retry." : m;
++    }
++
+     private JSONObject readJson(BufferedReader r) throws Exception {
+         String line = r.readLine();
+         if (line == null) throw new IllegalStateException("Receiver closed the connection.");
+@@ -530,6 +590,8 @@
+         foundName = "Windows PC";
+         foundPort = TCP_PORT;
+         pendingPairCode = "";
++        pendingPairToken = "";
++        expectedInstance = "";
+         forcePairOnce = false;
+     }
+ 
+@@ -538,6 +600,8 @@
+         ++connectionGeneration;
+         qrDirectFallbackPending = false;
+         autoConnectAfterDiscovery = false;
++        pendingPairToken = "";
++        expectedInstance = "";
+         ready = false;
+         ++heartbeatGeneration;
+         closeSocketOnly();
+--- a/android/app/src/main/java/in/tamishra/keydeck/MainActivity.java
++++ b/android/app/src/main/java/in/tamishra/keydeck/MainActivity.java
+@@ -550,11 +550,12 @@
+                         try{
+                             Uri u=Uri.parse(raw);
+                             boolean scheme="keydeck".equalsIgnoreCase(u.getScheme()) || "wirelesskey".equalsIgnoreCase(u.getScheme());
+-                            if(!scheme || !"pair".equalsIgnoreCase(u.getHost()) || !"5".equals(u.getQueryParameter("v"))){toast("That QR is not from KeyDeck Receiver.");return;}
++                            if(!scheme || !"pair".equalsIgnoreCase(u.getHost()) || !"6".equals(u.getQueryParameter("v"))){toast("That QR is not from KeyDeck Desktop Receiver v1.5.1.");return;}
+                             String host=u.getQueryParameter("host"); String code=u.getQueryParameter("code"); String name=u.getQueryParameter("name");
++                            String token=u.getQueryParameter("token"); String instance=u.getQueryParameter("instance");
+                             int port=ConnectionManager.TCP_PORT; try{String p=u.getQueryParameter("port");if(p!=null)port=Integer.parseInt(p);}catch(Exception ignored){}
+-                            if(host!=null&&!host.trim().isEmpty()){toastShort("KeyDeck receiver recognized");conn.connectFromQr(host,port,code,name);}
+-                            else {toastShort("KeyDeck receiver recognized • discovering PC");pairAfterDiscovery=true;conn.setPairCode(code);conn.discover();}
++                            toastShort((host!=null&&!host.trim().isEmpty()) ? "KeyDeck receiver recognized" : "KeyDeck receiver recognized • finding PC");
++                            conn.connectFromQr(host,port,code,name,token,instance);
+                         }catch(Exception ex){toast("KeyDeck QR could not be read. Use Discover or manual IP.");}
+                     })
+                     .addOnCanceledListener(()->{})
+--- a/qc/android_apk_qc.py
++++ b/qc/android_apk_qc.py
+@@ -5,11 +5,14 @@
+ touch=(root/'android/app/src/main/java/in/tamishra/keydeck/TouchpadView.java').read_text()
+ gradle=(root/'android/app/build.gradle').read_text()
+ checks={
+- 'version_1_3_1': "versionCode 10301" in gradle and "versionName '1.3.1'" in gradle,
++ 'version_1_5_1': "versionCode 10501" in gradle and "versionName '1.5.1'" in gradle,
+  'full_104_keyboard': 'new String[]{"Esc","F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12","PrtSc","ScrLk","Pause"}' in main and 'buildFullNumpad()' in main,
+  'keyboard_render_watchdog': 'verifyDeckKeyboardRender' in main and 'visible==104' in main,
+  'pair_code_limit': 'new InputFilter.LengthFilter(6)' in main,
+  'fresh_pair_api': 'pairFreshCurrent' in conn and 'forgetTrustFor(foundHost)' in conn,
++ 'protocol_6': 'public static final int PROTOCOL = 6;' in conn,
++ 'qr_receiver_binding': 'pendingPairToken' in conn and 'expectedInstance' in conn and 'receiver_mismatch' in conn and 'bad_pair_token' in conn,
++ 'qr_protocol_6_ui': '"6".equals(u.getQueryParameter("v"))' in main and 'u.getQueryParameter("token")' in main and 'u.getQueryParameter("instance")' in main and 'conn.connectFromQr(host,port,code,name,token,instance)' in main,
+  'no_stale_discovery_fallback': 'Receiver not found on this LAN.' in conn and 'Last paired PC' not in conn,
+  'connection_generation': 'connectionGeneration' in conn and 'generation != connectionGeneration' in conn,
+  'clear_last_host': '.remove("last_host")' in conn,
