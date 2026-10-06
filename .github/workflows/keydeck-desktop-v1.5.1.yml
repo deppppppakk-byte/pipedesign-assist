@@ -22,6 +22,7 @@ jobs:
       - name: Reassemble and verify source
         shell: bash
         run: |
+          set -euo pipefail
           cat keydeck-ci/v1.5.1/chunk_*.b64 > /tmp/keydeck151.b64
           test "$(wc -c < /tmp/keydeck151.b64)" -eq 26404
           base64 -d /tmp/keydeck151.b64 > /tmp/KeyDeck-Desktop-Receiver-v1.5.1-Source.zip
@@ -39,6 +40,40 @@ jobs:
           grep -F 'Devices' /tmp/keydeck151/receiver/native_ui_windows.go
           grep -F 'Diagnostics' /tmp/keydeck151/receiver/native_ui_windows.go
           grep -F 'Settings' /tmp/keydeck151/receiver/native_ui_windows.go
+
+      - name: Normalize v1.5.1 release identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i 's/KeyDeck Receiver v1.5.0 starting/KeyDeck Desktop Receiver v1.5.1 starting/' /tmp/keydeck151/receiver/main.go
+          cat > /tmp/keydeck151/receiver/README.txt <<'EOF'
+          KeyDeck Desktop Receiver v1.5.1
+
+          Professional Windows receiver for KeyDeck Android v1.5.1.
+
+          1. Close every older KeyDeck/WirelessKey receiver before starting.
+          2. Run KeyDeckDesktopReceiver-v1.5.1.exe on Windows 10/11.
+          3. Allow Private-network firewall access when Windows prompts.
+          4. Open Home to view the current QR, six-digit fallback code, receiver instance and connection status.
+          5. On Android v1.5.1, open Connect > Scan QR.
+          6. Use Devices for trusted-device management, Diagnostics for port/log/error health, and Settings for startup/tray behavior.
+
+          Pairing/security:
+          - Protocol 6
+          - Short-lived QR token bound to the exact receiver instance
+          - Six-digit manual fallback pairing
+          - Per-device random trust secret
+          - HMAC-SHA256 challenge on trusted reconnect
+          - Single receiver ownership of TCP 8765
+
+          Network:
+          - UDP 8764: LAN discovery
+          - TCP 8765: authenticated keyboard/mouse control
+          - This v1.5.1 release uses LAN direct mode. Remote relay integration is not live yet.
+          EOF
+          grep -F 'KeyDeck Desktop Receiver v1.5.1 starting' /tmp/keydeck151/receiver/main.go
+          grep -F 'KeyDeck Desktop Receiver v1.5.1' /tmp/keydeck151/receiver/README.txt
+          ! grep -R -E 'v1\.5\.0|v1\.2\.2' /tmp/keydeck151/receiver
 
       - name: Set up Go 1.23
         uses: actions/setup-go@v5
@@ -60,6 +95,8 @@ jobs:
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-H windowsgui -s -w" -o /tmp/KeyDeckDesktopReceiver-v1.5.1.exe .
           test -s /tmp/KeyDeckDesktopReceiver-v1.5.1.exe
           file /tmp/KeyDeckDesktopReceiver-v1.5.1.exe | grep -E 'PE32\+.*GUI.*x86-64'
+          strings /tmp/KeyDeckDesktopReceiver-v1.5.1.exe | grep -F 'KeyDeck Desktop Receiver v1.5.1 starting'
+          ! strings /tmp/KeyDeckDesktopReceiver-v1.5.1.exe | grep -F 'KeyDeck Receiver v1.5.0 starting'
           sha256sum /tmp/KeyDeckDesktopReceiver-v1.5.1.exe > /tmp/KeyDeckDesktopReceiver-v1.5.1.exe.sha256
 
       - name: Package professional receiver
@@ -77,7 +114,7 @@ jobs:
       - name: Upload receiver artifact
         uses: actions/upload-artifact@v4
         with:
-          name: KeyDeck-Desktop-Receiver-v1.5.1-Windows
+          name: KeyDeck-Desktop-Receiver-v1.5.1-Windows-Final
           if-no-files-found: error
           path: |
             /tmp/KeyDeckDesktopReceiver-v1.5.1.exe
