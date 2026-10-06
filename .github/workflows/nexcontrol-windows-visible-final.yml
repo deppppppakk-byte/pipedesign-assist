@@ -1,0 +1,260 @@
+name: NexControl Windows Visible Final
+
+on:
+  push:
+    branches:
+      - temp/nexcontrol-v11-railway-build
+    paths:
+      - ".github/workflows/nexcontrol-windows-visible-final.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-visible-final:
+    runs-on: windows-latest
+    timeout-minutes: 50
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download verified NexControl source
+        shell: pwsh
+        run: |
+          $base = "https://nexcontrol-v1-1-android-build-production.up.railway.app"
+          $archive = Join-Path $env:RUNNER_TEMP "NexControl-v1.1.0-windows-source.tar.gz"
+          $checksum = "$archive.sha256"
+          Invoke-WebRequest -UseBasicParsing "$base/NexControl-v1.1.0-windows-source.tar.gz" -OutFile $archive
+          Invoke-WebRequest -UseBasicParsing "$base/NexControl-v1.1.0-windows-source.tar.gz.sha256" -OutFile $checksum
+          $expected = ((Get-Content -Raw $checksum).Trim() -split "\s+")[0].ToLowerInvariant()
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "Source checksum mismatch." }
+          New-Item -ItemType Directory -Force -Path src | Out-Null
+          tar -xzf $archive -C src
+          if ($LASTEXITCODE -ne 0) { throw "Source extraction failed." }
+          @(
+            "src/host/tray_host.py",
+            "src/host/requirements.txt",
+            "src/host/requirements-windows.txt",
+            "src/installer/NexControlHost.iss"
+          ) | ForEach-Object {
+            if (-not (Test-Path $_)) { throw "Missing source: $_" }
+          }
+
+      - name: Install complete Windows runtime dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          python -m pip install -r src/host/requirements.txt
+          python -m pip install -r src/host/requirements-windows.txt
+          python -m pip install "aiortc==1.15.0" "av>=14,<18" "livekit==1.1.19"
+          python -m pip install pyinstaller
+          python -c "import aiortc, av, livekit; print('WebRTC runtime OK:', aiortc.__version__, av.__version__)"
+
+      - name: Build background host core
+        shell: pwsh
+        run: |
+          Push-Location src
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name NexControlHostCore --add-data "mobile;mobile" --collect-all aiortc --collect-all av --collect-all livekit host/tray_host.py
+          if (-not (Test-Path "dist/NexControlHostCore.exe")) { throw "Core host build failed." }
+          Pop-Location
+
+      - name: Create visible desktop launcher
+        shell: pwsh
+        run: |
+          @'
+          import atexit
+          import os
+          import subprocess
+          import sys
+          import tkinter as tk
+          from tkinter import messagebox
+
+          APP_NAME = "NexControl Host"
+          VERSION = "1.1.0"
+          core_process = None
+          shutting_down = False
+
+          def bundled_path(name: str) -> str:
+              base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(sys.executable)))
+              return os.path.join(base, name)
+
+          def stop_core():
+              global core_process
+              if core_process is None or core_process.poll() is not None:
+                  return
+              try:
+                  core_process.terminate()
+                  core_process.wait(timeout=3)
+              except Exception:
+                  try:
+                      core_process.kill()
+                  except Exception:
+                      pass
+
+          def stop_and_exit():
+              global shutting_down
+              shutting_down = True
+              stop_core()
+              root.destroy()
+
+          def minimize_window():
+              root.iconify()
+
+          def on_close():
+              root.iconify()
+
+          def poll_core():
+              if shutting_down:
+                  return
+              if core_process is None:
+                  status_var.set("Status: Starting...")
+                  detail_var.set("Starting the secure NexControl background service...")
+              elif core_process.poll() is None:
+                  status_var.set("Status: Running")
+                  detail_var.set("This PC is ready for NexControl connections. Keep NexControl Host running while you use the mobile app.")
+              else:
+                  status_var.set(f"Status: Host stopped (code {core_process.returncode})")
+                  detail_var.set("The background host stopped. Restart NexControl Host to try again.")
+              root.after(1000, poll_core)
+
+          root = tk.Tk()
+          root.title(f"{APP_NAME} {VERSION}")
+          root.geometry("520x300")
+          root.minsize(480, 270)
+          root.protocol("WM_DELETE_WINDOW", on_close)
+
+          frame = tk.Frame(root, padx=28, pady=24)
+          frame.pack(fill="both", expand=True)
+
+          tk.Label(frame, text="NexControl Host", font=("Segoe UI", 20, "bold")).pack(anchor="w")
+          tk.Label(frame, text="Remote PC control receiver", font=("Segoe UI", 10)).pack(anchor="w", pady=(2, 18))
+
+          status_var = tk.StringVar(value="Status: Starting...")
+          tk.Label(frame, textvariable=status_var, font=("Segoe UI", 13, "bold")).pack(anchor="w")
+
+          detail_var = tk.StringVar(value="Starting the secure NexControl background service...")
+          tk.Label(frame, textvariable=detail_var, font=("Segoe UI", 10), justify="left", wraplength=450).pack(anchor="w", pady=(10, 20))
+
+          tk.Label(
+              frame,
+              text="Closing this window minimizes NexControl Host. Use Stop Host & Exit to fully stop it.",
+              font=("Segoe UI", 9),
+              justify="left",
+              wraplength=450,
+          ).pack(anchor="w", pady=(0, 18))
+
+          buttons = tk.Frame(frame)
+          buttons.pack(anchor="w")
+          tk.Button(buttons, text="Hide Window", width=16, command=minimize_window).pack(side="left", padx=(0, 10))
+          tk.Button(buttons, text="Stop Host & Exit", width=18, command=stop_and_exit).pack(side="left")
+
+          try:
+              core = bundled_path("NexControlHostCore.exe")
+              if not os.path.exists(core):
+                  raise FileNotFoundError(core)
+              creationflags = 0x08000000 if os.name == "nt" else 0
+              core_process = subprocess.Popen([core], creationflags=creationflags)
+          except Exception as exc:
+              status_var.set("Status: Failed to start")
+              detail_var.set(str(exc))
+              messagebox.showerror(APP_NAME, f"NexControl background host could not start.\n\n{exc}")
+
+          atexit.register(stop_core)
+          root.after(600, poll_core)
+          root.mainloop()
+          '@ | Set-Content -Encoding UTF8 src/host/visible_launcher.py
+          python -m compileall -q src/host/visible_launcher.py
+
+      - name: Build visible NexControlHost.exe
+        shell: pwsh
+        run: |
+          Push-Location src
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name NexControlHost --add-binary "dist/NexControlHostCore.exe;." host/visible_launcher.py
+          if (-not (Test-Path "dist/NexControlHost.exe")) { throw "Visible launcher build failed." }
+          New-Item -ItemType Directory -Force -Path host/dist | Out-Null
+          Copy-Item "dist/NexControlHost.exe" "host/dist/NexControlHost.exe" -Force
+          Pop-Location
+
+      - name: Visible launcher smoke test
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path "src/host/dist/NexControlHost.exe").Path
+          $appProc = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 12
+          if ($appProc.HasExited) { throw "Visible launcher exited early with code $($appProc.ExitCode)." }
+          Stop-Process -Id $appProc.Id -Force
+          Write-Host "Visible launcher stayed alive."
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          Push-Location src
+          $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source)
+          if (-not $iscc) {
+            $candidates = @(
+              "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+              "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+              "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+            )
+            $iscc = $candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+          }
+          if (-not $iscc) { throw "Inno Setup compiler not found." }
+          & $iscc "installer\NexControlHost.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed." }
+          if (-not (Test-Path "installer\Output\NexControlHost-1.1.0-Setup.exe")) { throw "Installer output missing." }
+          Pop-Location
+
+      - name: Clean install and real launch test
+        shell: pwsh
+        run: |
+          $setup = (Resolve-Path "src/installer/Output/NexControlHost-1.1.0-Setup.exe").Path
+          $log = Join-Path $env:RUNNER_TEMP "NexControl-final-install.log"
+          $args = @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/LOG=$log")
+          $installProc = Start-Process -FilePath $setup -ArgumentList $args -Wait -PassThru
+          if ($installProc.ExitCode -ne 0) { throw "Installer failed with code $($installProc.ExitCode)." }
+
+          $destLine = Select-String -Path $log -Pattern 'Dest filename: .*NexControlHost\.exe' | Select-Object -Last 1
+          if (-not $destLine) { throw "Installed EXE path not found in installer log." }
+          $installedPath = ($destLine.Line -replace '^.*Dest filename:\s*', '').Trim()
+          if (-not (Test-Path $installedPath)) { throw "Installed host missing: $installedPath" }
+
+          $appProc = Start-Process -FilePath $installedPath -PassThru
+          Start-Sleep -Seconds 12
+          if ($appProc.HasExited) { throw "Installed visible host exited early with code $($appProc.ExitCode)." }
+          Stop-Process -Id $appProc.Id -Force
+          Write-Host "Installed visible NexControl Host stayed alive."
+
+      - name: Create SHA-256 files
+        shell: pwsh
+        run: |
+          $hostExe = "src/host/dist/NexControlHost.exe"
+          $setupExe = "src/installer/Output/NexControlHost-1.1.0-Setup.exe"
+          $hostHash = (Get-FileHash $hostExe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $setupHash = (Get-FileHash $setupExe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hostHash  NexControlHost.exe" | Set-Content -NoNewline "$hostExe.sha256"
+          "$setupHash  NexControlHost-1.1.0-Setup.exe" | Set-Content -NoNewline "$setupExe.sha256"
+
+      - name: Upload final visible Windows release
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexControl-v1.1.0-Windows-Visible-Final
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            src/host/dist/NexControlHost.exe
+            src/host/dist/NexControlHost.exe.sha256
+            src/installer/Output/NexControlHost-1.1.0-Setup.exe
+            src/installer/Output/NexControlHost-1.1.0-Setup.exe.sha256
