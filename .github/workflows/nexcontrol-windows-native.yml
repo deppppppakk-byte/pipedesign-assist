@@ -79,6 +79,28 @@ jobs:
           }
           Pop-Location
 
+      - name: Source launch smoke test
+        shell: pwsh
+        run: |
+          $stdout = Join-Path $env:RUNNER_TEMP "nexcontrol-source.stdout.log"
+          $stderr = Join-Path $env:RUNNER_TEMP "nexcontrol-source.stderr.log"
+          Push-Location src
+          try {
+            $p = Start-Process -FilePath python -ArgumentList @("-u", "host/tray_host.py") -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+            Start-Sleep -Seconds 8
+            if ($p.HasExited) {
+              Write-Host "Source host exited early with code $($p.ExitCode)"
+              if (Test-Path $stdout) { Get-Content $stdout -Raw }
+              if (Test-Path $stderr) { Get-Content $stderr -Raw }
+              throw "NexControl source host failed launch smoke test."
+            }
+            Stop-Process -Id $p.Id -Force
+            Write-Host "Source host stayed alive for launch smoke test."
+          }
+          finally {
+            Pop-Location
+          }
+
       - name: Build NexControlHost.exe
         shell: pwsh
         run: |
@@ -90,6 +112,33 @@ jobs:
           New-Item -ItemType Directory -Force -Path host/dist | Out-Null
           Copy-Item "dist/NexControlHost.exe" "host/dist/NexControlHost.exe" -Force
           Pop-Location
+
+      - name: Build diagnostic console host
+        shell: pwsh
+        run: |
+          Push-Location src
+          python -m PyInstaller --noconfirm --clean --onefile --console --name NexControlHost-Diagnostic --add-data "mobile;mobile" --collect-all aiortc --collect-all av --collect-all livekit host/tray_host.py
+          if (-not (Test-Path "dist/NexControlHost-Diagnostic.exe")) {
+            throw "PyInstaller did not create diagnostic host."
+          }
+          Pop-Location
+
+      - name: Bundled host launch smoke test
+        shell: pwsh
+        run: |
+          $stdout = Join-Path $env:RUNNER_TEMP "nexcontrol-bundled.stdout.log"
+          $stderr = Join-Path $env:RUNNER_TEMP "nexcontrol-bundled.stderr.log"
+          $exe = (Resolve-Path "src/dist/NexControlHost-Diagnostic.exe").Path
+          $p = Start-Process -FilePath $exe -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          Start-Sleep -Seconds 10
+          if ($p.HasExited) {
+            Write-Host "Bundled host exited early with code $($p.ExitCode)"
+            if (Test-Path $stdout) { Write-Host "=== STDOUT ==="; Get-Content $stdout -Raw }
+            if (Test-Path $stderr) { Write-Host "=== STDERR ==="; Get-Content $stderr -Raw }
+            throw "Bundled NexControl host failed launch smoke test."
+          }
+          Stop-Process -Id $p.Id -Force
+          Write-Host "Bundled host stayed alive for launch smoke test."
 
       - name: Install Inno Setup
         shell: pwsh
@@ -154,6 +203,20 @@ jobs:
 
           Write-Host "Installed NexControl host: $installedPath"
 
+      - name: Installed host launch smoke test
+        shell: pwsh
+        run: |
+          $log = (Join-Path $env:RUNNER_TEMP "NexControl-install.log")
+          $destLine = Select-String -Path $log -Pattern 'Dest filename: .*NexControlHost\.exe' | Select-Object -Last 1
+          $installedPath = ($destLine.Line -replace '^.*Dest filename:\s*', '').Trim()
+          $p = Start-Process -FilePath $installedPath -PassThru
+          Start-Sleep -Seconds 10
+          if ($p.HasExited) {
+            throw "Installed NexControlHost.exe exited immediately with code $($p.ExitCode)."
+          }
+          Stop-Process -Id $p.Id -Force
+          Write-Host "Installed host stayed alive for launch smoke test."
+
       - name: Upload installer smoke log
         if: always()
         uses: actions/upload-artifact@v4
@@ -162,6 +225,19 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
           path: src/installer/NexControl-install-smoke.log
+
+      - name: Upload launch diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexControl-v1.1.0-Launch-Diagnostics
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/nexcontrol-source.stdout.log
+            ${{ runner.temp }}/nexcontrol-source.stderr.log
+            ${{ runner.temp }}/nexcontrol-bundled.stdout.log
+            ${{ runner.temp }}/nexcontrol-bundled.stderr.log
 
       - name: Create SHA-256 files
         shell: pwsh
